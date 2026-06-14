@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --color-brand-cream: #f4f2e9;
+  --color-brand-ivory: #fcfbf7;
+  --color-brand-obsidian: #111111;
+  --color-brand-charcoal: #222222;
+  --color-brand-crimson: #991b1b;
+}
+
+body {
+  background-color: var(--color-brand-cream);
+  color: var(--color-brand-obsidian);
+  font-family: var(--font-sans);
+}
+
+/* Custom raw aesthetic scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-brand-cream);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-obsidian);
+  border-radius: 0px;
+}
+
+.maternal-border {
+  border: 2px solid var(--color-brand-obsidian);
+}
+
+.maternal-shadow {
+  box-shadow: 4px 4px 0px 0px var(--color-brand-obsidian);
+}
+
+.maternal-shadow-sm {
+  box-shadow: 2px 2px 0px 0px var(--color-brand-obsidian);
+}
+
+.maternal-shadow-lg {
+  box-shadow: 8px 8px 0px 0px var(--color-brand-obsidian);
+}
+
+.maternal-btn {
+  background-color: var(--color-brand-obsidian);
+  color: var(--color-brand-cream);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--color-brand-obsidian);
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.maternal-btn:hover {
+  background-color: var(--color-brand-cream);
+  color: var(--color-brand-obsidian);
+}
+
+.maternal-btn-outline {
+  background-color: transparent;
+  color: var(--color-brand-obsidian);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--color-brand-obsidian);
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.maternal-btn-outline:hover {
+  background-color: var(--color-brand-obsidian);
+  color: var(--color-brand-cream);
+}
+
+@media print {
+  /* Prevent background pages from leaking height or causing scrolling offsets */
+  html, body, #root, #main-maternal-app {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Completely collapse non-printable parts of the app during print to dynamic height */
+  header, footer, nav, aside, .no-print, button, .print\:hidden {
+    display: none !important;
+  }
+
+  /* Target direct sub-layouts to collapse print height completely */
+  #user-workspace-page > :not(#invoice-modal-overlay),
+  #seller-workspace-page > :not(#seller-print-overlay) {
+    display: none !important;
+  }
+
+  /* Prevent fixed overlays from showing background and restricting viewport sizes */
+  #invoice-modal-overlay,
+  #seller-print-overlay {
+    position: relative !important;
+    display: block !important;
+    background: white !important;
+    color: black !important;
+    inset: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    z-index: auto !important;
+  }
+
+  /* Make sure our printable elements are styled elegantly and visible */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .printable-area, .printable-area * {
+    visibility: visible !important;
+  }
+
+  .printable-area {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+

@@ -1,0 +1,57 @@
+{
+  "users": [
+    { "id": "usr_admin", "name": "Super Admin Toko Sipil", "email": "admin@tokosipil.com", "role": "SUPER_ADMIN", "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150" },
+    { "id": "usr_pegawai", "name": "Ahmad Staff", "email": "pegawai@tokosipil.com", "role": "PEGAWAI", "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" },
+    { "id": "usr_seller", "name": "Vendy Toko Sipil Seller", "email": "seller@tokosipil.com", "role": "SELLER", "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" },
+    { "id": "usr_buyer", "name": "Iyasya Buyer", "email": "buyer@tokosipil.com", "role": "BUYER", "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150" }
+  ],
+  "storeApplications": [],
+  "stores": [],
+  "products": [],
+  "categories": [
+    { "id": "cat_tshirts", "name": "T-Shirts", "slug": "t-shirts", "icon": "Shirt" },
+    { "id": "cat_hoodies", "name": "Hoodies", "slug": "hoodies", "icon": "Flame" },
+    { "id": "cat_jackets", "name": "Jackets", "slug": "jackets", "icon": "Scissors" },
+    { "id": "cat_pants", "name": "Pants", "slug": "pants", "icon": "Square" },
+    { "id": "cat_accessories", "name": "Accessories", "slug": "accessories", "icon": "Sparkles" }
+  ],
+  "orders": [],
+  "wallets": [],
+  "walletTransactions": [],
+  "bankAccounts": [],
+  "withdrawals": [],
+  "chats": [],
+  "messages": [],
+  "reviews": [],
+  "vouchers": [
+    {
+      "id": "vch_platform_1",
+      "code": "TOKO50",
+      "type": "PLATFORM",
+      "discountType": "NOMINAL",
+      "amount": 50000,
+      "minPurchase": 300000,
+      "active": true
+    }
+  ],
+  "banners": [
+    {
+      "id": "ban_1",
+      "image": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1600&h=600&fit=crop",
+      "title": "Toko Sipil Records - Darkness Unleashed",
+      "url": "/shop",
+      "active": true
+    },
+    {
+      "id": "ban_2",
+      "image": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&h=600&fit=crop",
+      "title": "Black & Cream Gothic Modern Archive",
+      "url": "/shop?category=t-shirts",
+      "active": true
+    }
+  ],
+  "settings": {
+    "commissionPercent": 5
+  },
+  "follows": []
+}
