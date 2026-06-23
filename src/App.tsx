@@ -17,16 +17,18 @@ import CheckoutModal from './components/CheckoutModal';
 import DashboardAdmin from './components/DashboardAdmin';
 import DashboardSeller from './components/DashboardSeller';
 import DashboardUser from './components/DashboardUser';
-import InstagramFeed from './components/InstagramFeed';
 import HelpCenter from './components/HelpCenter';
 import LegalPolicies from './components/LegalPolicies';
 import TrackOrder from './components/TrackOrder';
-import { Sparkles, ArrowRight, Instagram, Mail, Info, Store, Heart, ShoppingBag, ShieldAlert } from 'lucide-react';
+import AndroidBuilder from './components/AndroidBuilder';
+import { Sparkles, ArrowRight, Instagram, Mail, Info, Store, Heart, ShoppingBag, ShieldAlert, CheckCircle2, AlertTriangle, XCircle, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 
 function AppContent() {
   const { 
     currentUser, activePage, setActivePage, stores, products, vouchers, 
-    toggleFollowStore, followedStores, login, signup, authOpen, setAuthOpen
+    toggleFollowStore, followedStores, login, signup, authOpen, setAuthOpen,
+    toasts, removeToast, addToast, setUserDashboardInitialTab, settings
   } = useApp();
 
   // Overlay component states
@@ -37,10 +39,68 @@ function AppContent() {
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [trackedOrderId, setTrackedOrderId] = useState<string>('');
 
+  // Handle Midtrans redirect callback query parameters on app mount
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('order_id');
+      const transStatus = params.get('transaction_status');
+      const statusCode = params.get('status_code');
+
+      if (orderId) {
+        if (transStatus === 'settlement' || transStatus === 'capture' || statusCode === '200') {
+          addToast(
+            "PEMBAYARAN BERHASIL", 
+            `Terima kasih! Pembayaran untuk Order ID ${orderId} sukses diproses.`, 
+            "success"
+          );
+          setActivePage('dashboard-user');
+          if (setUserDashboardInitialTab) {
+            setUserDashboardInitialTab('orders');
+          }
+        } else if (transStatus === 'pending' || statusCode === '201') {
+          addToast(
+            "PEMBAYARAN DIPROSES", 
+            `Transaksi pending. Silakan selesaikan tagihan Anda untuk Order ID ${orderId}.`, 
+            "info"
+          );
+          setActivePage('dashboard-user');
+          if (setUserDashboardInitialTab) {
+            setUserDashboardInitialTab('orders');
+          }
+        } else if (transStatus === 'deny' || transStatus === 'cancel' || transStatus === 'expire') {
+          addToast(
+            "TRANSAKSI BATAL / GAGAL", 
+            `Status pembayaran Midtrans untuk Order ID ${orderId}: ${transStatus.toUpperCase()}`, 
+            "error"
+          );
+          setActivePage('dashboard-user');
+          if (setUserDashboardInitialTab) {
+            setUserDashboardInitialTab('orders');
+          }
+        }
+        
+        // Remove query parameters from Address Bar cleanly
+        const newUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    } catch (e) {
+      console.error('[Callback Redirect Error]', e);
+    }
+  }, []);
+
   // Trigger simulated payment flow on pending or previous orders
   const handleOpenCheckoutWithOrder = (order: any) => {
     setSelectedPayOrder(order);
     setCheckoutOpen(true);
+  };
+
+  // Navigates and automatically scrolls to the top/center to ensure perfect mobile and desktop viewport positioning
+  const navigateToPage = (page: typeof activePage) => {
+    setActivePage(page);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
   };
 
   return (
@@ -49,7 +109,7 @@ function AppContent() {
       {/* Header Navigation Navigation Bar */}
       <Header 
         onOpenCart={() => setCartOpen(true)}
-        onOpenWishlist={() => setActivePage('dashboard-user')}
+        onOpenWishlist={() => navigateToPage('dashboard-user')}
         onOpenAuth={() => setAuthOpen(true)}
         onOpenChat={() => setChatOpen(true)}
       />
@@ -337,10 +397,6 @@ function AppContent() {
           />
         )}
 
-        {activePage === 'instagram' && (
-          <InstagramFeed />
-        )}
-
         {activePage === 'help-center' && (
           <HelpCenter />
         )}
@@ -358,6 +414,10 @@ function AppContent() {
             }}
           />
         )}
+
+        {activePage === 'android-builder' && (
+          <AndroidBuilder />
+        )}
       </main>
 
       {/* FOOTER: Minimalist Raw Gothic Streetstyle */}
@@ -366,9 +426,17 @@ function AppContent() {
           
           {/* Logo identity column */}
           <div className="space-y-4">
-            <span className="font-serif text-3xl font-bold tracking-tighter text-white">TOKO SIPIL Alternative</span>
+            <div className="flex items-center gap-2">
+              <img 
+                src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"} 
+                alt={settings?.appName || "Logo Toko Sipil"} 
+                className="w-7 h-7 rounded border border-gray-800 object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <span className="font-serif text-3.5xl font-bold tracking-tighter text-white">{settings?.appName || "TOKO SIPIL"} ALTERNATIVE</span>
+            </div>
             <p className="text-[10px] text-gray-500 uppercase leading-snug">
-              Kavling Toko Sipil, Est 2026. Alt Fashion multi-vendor platform, supporting raw, independent, and high-fidelity streetwear designers.
+              Kavling {settings?.appName || "Toko Sipil"}, Est 2026. Alt Fashion multi-vendor platform, supporting civil architectural styles and high-fidelity streetwear designers.
             </p>
           </div>
 
@@ -376,28 +444,34 @@ function AppContent() {
           <div className="space-y-2">
             <span className="font-serif font-bold text-red-600 uppercase text-xs">PORTAL DIRECTORY</span>
             <div className="flex flex-col gap-1 text-[10px] text-gray-400">
-              <button onClick={() => setActivePage('home')} className="text-left hover:text-white transition cursor-pointer">Halaman Utama</button>
-              <button onClick={() => setActivePage('shop')} className="text-left hover:text-white transition cursor-pointer">Katalog Rilis</button>
-              <button onClick={() => setActivePage('stores')} className="text-left hover:text-white transition cursor-pointer">Daftar Store</button>
-              <button onClick={() => setActivePage('about')} className="text-left hover:text-white transition cursor-pointer">Manifes Alternatif</button>
+              <button onClick={() => navigateToPage('home')} className="text-left hover:text-white transition cursor-pointer">Halaman Utama</button>
+              <button onClick={() => navigateToPage('shop')} className="text-left hover:text-white transition cursor-pointer">Katalog Rilis</button>
+              <button onClick={() => navigateToPage('stores')} className="text-left hover:text-white transition cursor-pointer">Daftar Store</button>
+              <button onClick={() => navigateToPage('about')} className="text-left hover:text-white transition cursor-pointer">Manifes Alternatif</button>
             </div>
           </div>
 
           {/* Help, Medsos and Legal layout quick links column */}
           <div className="space-y-2">
-            <span className="font-serif font-bold text-red-605 uppercase text-xs">BANTUAN & MEDSOS</span>
+            <span className="font-serif font-bold text-red-600 uppercase text-xs">PUSAT BANTUAN</span>
             <div className="flex flex-col gap-1 text-[10px] text-gray-400">
-              <button onClick={() => setActivePage('help-center')} className="text-left hover:text-white transition cursor-pointer">Pusat Bantuan (FAQ)</button>
-              <button onClick={() => setActivePage('track-order')} className="text-left hover:text-white transition cursor-pointer text-amber-400 font-bold">Lacak Pengiriman 🚚</button>
-              <button onClick={() => setActivePage('instagram')} className="text-left hover:text-white transition cursor-pointer">Instagram @hmts_unikom</button>
-              <button onClick={() => setActivePage('legal-policies')} className="text-left hover:text-white transition cursor-pointer">Kebijakan & Syarat</button>
-              <a href="https://www.instagram.com/hmts_unikom/" target="_blank" rel="noopener noreferrer" className="text-left hover:text-white transition cursor-pointer">Instagram (Eksternal) ↗</a>
+              <button onClick={() => navigateToPage('help-center')} className="text-left hover:text-white transition cursor-pointer">Pusat Bantuan (FAQ)</button>
+              <button onClick={() => navigateToPage('track-order')} className="text-left hover:text-white transition cursor-pointer text-amber-400 font-bold">Lacak Pengiriman 🚚</button>
+              <button onClick={() => navigateToPage('legal-policies')} className="text-left hover:text-white transition cursor-pointer">Kebijakan & Syarat</button>
+              <a 
+                href="https://www.instagram.com/hmts_unikom/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-left hover:text-pink-500 transition cursor-pointer flex items-center gap-1.5 pt-1 text-[#f4f2e9] font-bold"
+              >
+                <Instagram className="w-3.5 h-3.5 text-pink-500" /> INSTAGRAM @HMTS_UNIKOM ↗
+              </a>
             </div>
           </div>
 
           {/* Social connections newsletter box */}
           <div className="space-y-3">
-            <span className="font-serif font-bold text-red-610 uppercase text-xs">ARCHIVE CORRESPONDENCE</span>
+            <span className="font-serif font-bold text-red-600 uppercase text-xs">ARCHIVE CORRESPONDENCE</span>
             <p className="text-[10px] text-gray-500 uppercase leading-relaxed">
               Daftarkan email Anda pada log telegram kami untuk mendapatkan perilisan katalog band dan aksesoris eksklusif pre-sale dari seller terverifikasi.
             </p>
@@ -422,7 +496,7 @@ function AppContent() {
 
         {/* Legal licensing elements */}
         <div className="bg-[#0c0c0c] border-t border-gray-800 py-4 text-center text-[9px] text-gray-600 uppercase select-none">
-          <span>© 2026 TOKO SIPIL ALTERNATIVE. COBLONG TECH LABS INC. ALL DESIGN INTELLECTUAL RESERVED.</span>
+          <span>© 2026 {String(settings?.appName || "TOKO SIPIL").toUpperCase()} ALTERNATIVE. COBLONG TECH LABS INC. ALL DESIGN INTELLECTUAL RESERVED.</span>
         </div>
       </footer>
 
@@ -460,8 +534,69 @@ function AppContent() {
           product={selectedProduct} 
           onClose={() => setSelectedProduct(null)} 
           onOpenChat={() => setChatOpen(true)}
+          onOpenCheckout={() => {
+            if (!currentUser) {
+              setAuthOpen(true);
+            } else {
+              setCheckoutOpen(true);
+            }
+          }}
         />
       )}
+
+      {/* Toast Notifications Panel */}
+      <div className="fixed bottom-6 right-6 z-[100] max-w-sm w-full flex flex-col gap-3 pointer-events-none" id="global-toast-container">
+        <AnimatePresence>
+          {toasts && toasts.map((toast) => {
+            let IconComponent = Info;
+            let accentClass = "bg-blue-600";
+            
+            if (toast.type === "success") {
+              IconComponent = CheckCircle2;
+              accentClass = "bg-emerald-600";
+            } else if (toast.type === "warning") {
+              IconComponent = AlertTriangle;
+              accentClass = "bg-amber-500";
+            } else if (toast.type === "error") {
+              IconComponent = XCircle;
+              accentClass = "bg-rose-600";
+            }
+
+            return (
+              <motion.div
+                key={toast.id}
+                layout
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 100, transition: { duration: 0.2 } }}
+                className="pointer-events-auto w-full relative overflow-hidden bg-[#faf9f3] border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] p-4 pr-10 flex gap-3.5 items-start select-none font-mono"
+              >
+                {/* Accent line on left side */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${accentClass}`} />
+                
+                <IconComponent className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                
+                <div className="flex-grow space-y-1 text-left">
+                  <h4 className="font-serif font-black text-xs uppercase tracking-tight text-black flex items-center gap-1.5">
+                    {toast.title}
+                  </h4>
+                  <p className="text-[10px] leading-relaxed text-gray-700 uppercase">
+                    {toast.message}
+                  </p>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={() => removeToast(toast.id)}
+                  className="absolute top-3 right-3 text-gray-400 hover:text-black transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
 
     </div>
   );

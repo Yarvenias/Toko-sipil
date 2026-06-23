@@ -1,0 +1,14 @@
+{
+  "appId": "com.tokosipil.official",
+  "appName": "Toko Sipil Official",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "url": "https://toko-sipil-59600137609.asia-southeast1.run.app",
+    "allowNavigation": [
+      "toko-sipil-59600137609.asia-southeast1.run.app",
+      "ais-dev-ao4ij3eqewiigwwcl4kr6t-934223265379.asia-southeast1.run.app",
+      "ais-pre-ao4ij3eqewiigwwcl4kr6t-934223265379.asia-southeast1.run.app"
+    ]
+  }
+}

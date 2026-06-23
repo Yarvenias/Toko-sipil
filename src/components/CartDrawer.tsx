@@ -32,13 +32,27 @@ export default function CartDrawer({ onClose, onOpenCheckout, onOpenAuth }: Cart
   let totalWithVoucher = cartSubtotal;
 
   if (appliedVoucher) {
+    let eligibleSubtotal = cartSubtotal;
+    if (appliedVoucher.productId) {
+      eligibleSubtotal = cart.filter(item => item.product.id === appliedVoucher.productId).reduce((sum, item) => {
+        const discountedPrice = item.product.price * (1 - item.product.discount / 100);
+        return sum + (discountedPrice * item.quantity);
+      }, 0);
+    } else if (appliedVoucher.storeId) {
+      eligibleSubtotal = cart.filter(item => item.product.storeId === appliedVoucher.storeId).reduce((sum, item) => {
+        const discountedPrice = item.product.price * (1 - item.product.discount / 100);
+        return sum + (discountedPrice * item.quantity);
+      }, 0);
+    }
+
     if (appliedVoucher.discountType === 'NOMINAL') {
-      voucherValueText = `-Rp${appliedVoucher.amount.toLocaleString('id-ID')}`;
-      totalWithVoucher = Math.max(0, cartSubtotal - appliedVoucher.amount);
+      const discount = Math.min(eligibleSubtotal, appliedVoucher.amount);
+      voucherValueText = `-Rp${discount.toLocaleString('id-ID')}`;
+      totalWithVoucher = Math.max(0, cartSubtotal - discount);
     } else {
-      const value = Math.round(cartSubtotal * (appliedVoucher.amount / 100));
-      voucherValueText = `-Rp${value.toLocaleString('id-ID')} (${appliedVoucher.amount}%)`;
-      totalWithVoucher = Math.max(0, cartSubtotal - value);
+      const discount = Math.round(eligibleSubtotal * (appliedVoucher.amount / 100));
+      voucherValueText = `-Rp${discount.toLocaleString('id-ID')} (${appliedVoucher.amount}%)`;
+      totalWithVoucher = Math.max(0, cartSubtotal - discount);
     }
   }
 

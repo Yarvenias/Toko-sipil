@@ -14,10 +14,37 @@ interface CheckoutModalProps {
 }
 
 export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: CheckoutModalProps) {
-  const { currentUser, cart, appliedVoucher, clearCart, refreshAllData } = useApp();
+  const { currentUser, cart, appliedVoucher, applyVoucherCode, removeVoucher, vouchers, clearCart, refreshAllData } = useApp();
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     typeof navigator !== 'undefined' ? navigator.userAgent : ''
   );
+
+  const [voucherCodeInput, setVoucherCodeInput] = useState('');
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [voucherSuccess, setVoucherSuccess] = useState<string | null>(null);
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCodeInput.trim()) {
+      setVoucherError('Silakan masukkan atau klik kode voucher.');
+      setVoucherSuccess(null);
+      return;
+    }
+    setVoucherError(null);
+    setVoucherSuccess(null);
+    const err = await applyVoucherCode(voucherCodeInput);
+    if (err) {
+      setVoucherError(err);
+    } else {
+      setVoucherSuccess(`Voucher "${voucherCodeInput.toUpperCase()}" berhasil diterapkan!`);
+      setVoucherCodeInput('');
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    removeVoucher();
+    setVoucherError(null);
+    setVoucherSuccess(null);
+  };
 
   const [receiver, setReceiver] = useState(currentUser?.addressReceiver || currentUser?.name || '');
   const [phone, setPhone] = useState(currentUser?.addressPhone || currentUser?.phone || '08123456789');
@@ -123,6 +150,7 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
     const snapToken = createdOrder?.snapToken;
     if (!snapToken) return;
 
+    // calling win.snap.pay keeps the payment screen completely in-app inside the APK context.
     const win = window as any;
     if (win.snap) {
       win.snap.pay(snapToken, {
@@ -145,11 +173,16 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
       });
     } else {
       console.error('[Midtrans Snap] SDK is not loaded. Instantiating retry...');
-      // Direct redirect backup if popup library blocked or failing
+      // Direct redirect in the SAME window is incredibly robust on mobile devices and bypasses popup blockers
       if (createdOrder?.snapRedirectUrl) {
-        const confirmRedirect = window.confirm('Dukungan pop-up Snap diblokir atau belum terinisiasi. Apakah Anda ingin dialihkan ke halaman pemrosesan Midtrans langsung?');
-        if (confirmRedirect) {
-          window.open(createdOrder.snapRedirectUrl, '_blank');
+        if (isMobile) {
+          // On mobile, redirections in the same tab are safe and expected
+          window.location.href = createdOrder.snapRedirectUrl;
+        } else {
+          const confirmRedirect = window.confirm('Dukungan pop-up Snap diblokir atau belum terinisiasi. Apakah Anda ingin dialihkan ke halaman pemrosesan Midtrans directly?');
+          if (confirmRedirect) {
+            window.location.href = createdOrder.snapRedirectUrl;
+          }
         }
       } else {
         alert('Gagal mendeteksi script Midtrans Snap SDK. Silakan periksa koneksi Anda.');
@@ -207,7 +240,7 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
 
   useEffect(() => {
     calculateCosts();
-  }, [city, courier, cart, paymentMethod]);
+  }, [city, courier, cart, paymentMethod, appliedVoucher]);
 
   const handleInitiatePelunasan = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -426,12 +459,11 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
                   <option value="Mandiri Bill Payment">Mandiri Bill Payment</option>
                   <option value="BNI Virtual Account">BNI (Virtual Account)</option>
                   <option value="BRI Virtual Account">BRI (Virtual Account)</option>
-                  <option value="QRIS Pindai">QRIS (Tampilkan QR Code untuk Scan / Screenshot)</option>
-                  <option value="Aplikasi GoPay ShopeePay">Aplikasi GoPay / ShopeePay (Buka Aplikasi Otomatis)</option>
+                  <option value="QRIS Pindai">QRIS (Satu QR untuk Semua E-Wallet & Bank)</option>
                 </select>
                 {createdOrder && createdOrder.remainingAmount < 10000 && (paymentMethod.includes('Virtual Account') || paymentMethod.includes('Mandiri')) && (
                   <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-300 p-2 mt-1.5 font-mono font-bold uppercase leading-snug">
-                    ⚠️ TOTAL SISA DI BAWAH Rp10.000: Virtual Account tidak didukung oleh Midtrans. Sistem otomatis dialihkan ke QRIS/GoPay di panel pembayaran.
+                    ⚠️ TOTAL SISA DI BAWAH Rp10.000: Virtual Account tidak didukung oleh Midtrans. Sistem otomatis dialihkan ke QRIS di panel pembayaran.
                   </p>
                 )}
               </div>
@@ -603,12 +635,11 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
                       <option value="Mandiri Bill Payment">Mandiri Bill Payment</option>
                       <option value="BNI Virtual Account">BNI (Virtual Account)</option>
                       <option value="BRI Virtual Account">BRI (Virtual Account)</option>
-                      <option value="QRIS Pindai">QRIS (Tampilkan QR Code untuk Scan / Screenshot)</option>
-                      <option value="Aplikasi GoPay ShopeePay">Aplikasi GoPay / ShopeePay (Buka Aplikasi Otomatis)</option>
+                      <option value="QRIS Pindai">QRIS (Satu QR untuk Semua E-Wallet & Bank)</option>
                     </select>
                     {totals.totalAmount < 10000 && (paymentMethod.includes('Virtual Account') || paymentMethod.includes('Mandiri')) && (
                       <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-300 p-1.5 mt-1 font-mono font-bold uppercase leading-snug">
-                        ⚠️ TOTAL DI BAWAH Rp10.000: Virtual Account tidak didukung oleh Midtrans. Sistem otomatis dialihkan ke QRIS/GoPay di panel pembayaran.
+                        ⚠️ TOTAL DI BAWAH Rp10.000: Virtual Account tidak didukung oleh Midtrans. Sistem otomatis dialihkan ke QRIS di panel pembayaran.
                       </p>
                     )}
                   </div>
@@ -650,6 +681,112 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Gunakan Voucher Panel */}
+                <div className="border-t-2 border-black pt-4 pb-4 font-mono text-xs">
+                  <span className="font-serif font-black text-xs uppercase tracking-tight text-black mb-2 block">
+                    🎟️ GUNAKAN VOUCHER BELANJA
+                  </span>
+                  
+                  {appliedVoucher ? (
+                    <div className="bg-emerald-50 border-2 border-emerald-500 p-3 flex flex-col gap-1 text-emerald-950 font-mono">
+                      <div className="flex justify-between items-center">
+                        <span className="font-extrabold text-[10px] bg-emerald-600 text-white px-1.5 py-0.5 uppercase tracking-wide">
+                          AKTIF: {appliedVoucher.code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveVoucher}
+                          className="bg-red-800 text-white border border-black hover:bg-black transition px-2 py-0.5 text-[9px] font-bold uppercase cursor-pointer"
+                        >
+                          BATALKAN
+                        </button>
+                      </div>
+                      <p className="text-[10px] mt-1 font-bold leading-tight uppercase">
+                        Diskon {appliedVoucher.discountType === 'PERCENT' ? `${appliedVoucher.amount}%` : `Rp${appliedVoucher.amount.toLocaleString('id-ID')}`} 
+                        {appliedVoucher.storeId ? ` (Khusus Produk dari Toko ini)` : ' (Seluruh Platform)'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={voucherCodeInput}
+                          onChange={(e) => {
+                            setVoucherCodeInput(e.target.value);
+                            setVoucherError(null);
+                            setVoucherSuccess(null);
+                          }}
+                          placeholder="MASUKKAN KODE VOUCHER"
+                          className="flex-grow bg-white border-2 border-black px-2.5 py-2 rounded-none font-bold uppercase text-[11px] focus:outline-none placeholder:text-gray-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyVoucher}
+                          className="bg-black text-white hover:bg-zinc-800 transition px-4 py-2 border-2 border-black font-extrabold uppercase text-[10px] tracking-wider cursor-pointer"
+                        >
+                          GUNAKAN
+                        </button>
+                      </div>
+                      
+                      {voucherError && (
+                        <p className="text-[10px] text-rose-700 bg-rose-50 border border-rose-200 p-1.5 font-bold uppercase tracking-tight">
+                          ⚠️ {voucherError}
+                        </p>
+                      )}
+
+                      {voucherSuccess && (
+                        <p className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 p-1.5 font-bold uppercase tracking-tight">
+                          ✓ {voucherSuccess}
+                        </p>
+                      )}
+
+                      {/* Applicable Vouchers suggestion list */}
+                      {vouchers && vouchers.filter(v => v.active).length > 0 && (
+                        <div className="space-y-1 pt-1.5 border-t border-dashed border-gray-300">
+                          <p className="text-[9px] text-gray-500 uppercase font-black tracking-tight">Voucher Toko yang Bisa Dipakai:</p>
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-1">
+                            {vouchers.filter(v => v.active).map((vch) => {
+                              // Verify if candidate can be applied
+                              const isForMyStore = vch.storeId ? cart.some(item => item.product.storeId === vch.storeId) : true;
+                              const isForMyProduct = vch.productId ? cart.some(item => item.product.id === vch.productId) : true;
+                              const isApplicable = isForMyStore && isForMyProduct;
+
+                              return (
+                                <button
+                                  key={vch.id}
+                                  type="button"
+                                  disabled={!isApplicable}
+                                  onClick={() => {
+                                    setVoucherCodeInput(vch.code);
+                                    setVoucherError(null);
+                                    setVoucherSuccess(null);
+                                  }}
+                                  className={`text-[9px] px-2 py-1 border transition-all cursor-pointer font-bold text-left uppercase flex flex-col gap-0.5 rounded-none ${
+                                    isApplicable
+                                      ? 'bg-white hover:bg-stone-100 border-black text-black'
+                                      : 'bg-stone-100 border-stone-200 text-stone-400 line-through cursor-not-allowed'
+                                  }`}
+                                  title={
+                                    !isApplicable 
+                                      ? "Voucher khusus produk/toko tertentu yang tidak ada di keranjang Anda" 
+                                      : `Minimal beli Rp${vch.minPurchase.toLocaleString('id-ID')}`
+                                  }
+                                >
+                                  <span className="font-extrabold">{vch.code}</span>
+                                  <span className="text-[8px] font-medium text-gray-500">
+                                    Potongan {vch.discountType === 'PERCENT' ? `${vch.amount}%` : `Rp${vch.amount.toLocaleString('id-ID')}`}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Subtotals elements */}
@@ -834,70 +971,21 @@ export default function CheckoutModal({ onClose, onSuccessPay, initialOrder }: C
                     </p>
                   </div>
 
-                  {/* Optimized Mobile & QRIS Guidance Section */}
-                  <div className="bg-amber-50 border-2 border-black p-4 text-left font-mono text-xs mb-6">
-                    <span className="font-sans font-bold text-amber-900 text-[9px] uppercase tracking-wider block mb-2 px-1.5 py-0.5 bg-amber-200 w-fit">
-                      {isMobile ? "📱 DETEKSI HP: SMARTPHONE" : "💡 PETUNJUK QRIS / DEEPLINK MOBILE"}
-                    </span>
-                    <p className="text-[11px] font-bold text-black mb-2 leading-snug">
-                      Pembayaran QRIS / GoPay di HP kadang otomatis meminta buka aplikasi GoPay. Jika Anda ingin melakukan Scan QR Code atau memproses pembayaran dari HP lain:
-                    </p>
-                    <ol className="list-decimal pl-4 space-y-1.5 text-[10.5px] text-gray-700">
-                      <li>
-                        Klik tombol <b className="text-black uppercase">"BUKA PORTAL PEMBAYARAN (TAB BARU)"</b> di bawah ini.
-                      </li>
-                      <li>
-                        <b>Metode QRIS Pindai:</b> Pilih <b className="text-black">QRIS</b> pada portal Midtrans. Kode QR akan muncul di layar. Silakan ambil <b className="text-amber-950 border-b border-amber-900">Tangkapan Layar (Screenshot)</b> kode QR tersebut.
-                      </li>
-                      <li>
-                        Buka aplikasi bank Anda atau e-wallet Anda (GoPay, OVO, Dana, ShopeePay), pilih menu <b className="text-black">Scan/QR</b>, lalu pilih pilihan <b className="text-black">Unggah Gambar (pilih tangkapan layar tadi)</b> untuk membayar.
-                      </li>
-                      <li>
-                        <b>Metode GoPay/Aplikasi:</b> Jika Anda memiliki aplikasi GoPay/ShopeePay langsung di HP ini, pilih metode tersebut untuk membuka aplikasi dompet digital Anda dan bayar otomatis.
-                      </li>
-                    </ol>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    {isMobile ? (
-                      <>
-                        {createdOrder?.snapRedirectUrl && (
-                          <a
-                            href={createdOrder.snapRedirectUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full py-4 bg-green-700 hover:bg-neutral-900 text-white font-black transition border-2 border-black cursor-pointer uppercase flex items-center justify-center gap-2 text-center shadow-[4px_4px_0px_rgba(0,0,0,1)] text-xs"
-                          >
-                            <span>🚀 BUKA PORTAL PEMBAYARAN (TAB BARU)</span>
-                          </a>
-                        )}
-                        <button
-                          onClick={triggerMidtransSnap}
-                          className="w-full py-2.5 bg-slate-100 text-black font-semibold hover:bg-slate-200 transition border-2 border-black cursor-pointer uppercase flex items-center justify-center text-xs"
-                        >
-                          <span>📱 Coba Tampilkan Widget Popup Iframe</span>
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={triggerMidtransSnap}
-                          className="w-full py-3.5 bg-green-700 text-white font-black hover:bg-black transition border-2 border-black cursor-pointer uppercase flex items-center justify-center gap-2"
-                        >
-                          <span>BAYAR MELALUI BINDING MIDTRANS</span>
-                        </button>
-
-                        {createdOrder?.snapRedirectUrl && (
-                          <a
-                            href={createdOrder.snapRedirectUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full py-3 bg-white text-black font-semibold hover:bg-gray-100 transition border-2 border-black cursor-pointer uppercase flex items-center justify-center text-xs"
-                          >
-                            BUKA PORTAL DI TAB BARU
-                          </a>
-                        )}
-                      </>
+                  {/* Clean In-App Payment Action */}
+                  <div className="space-y-3 mt-4">
+                    <button
+                      onClick={triggerMidtransSnap}
+                      className="w-full py-4 bg-green-700 hover:bg-neutral-900 text-white font-black transition border-2 border-black cursor-pointer uppercase flex items-center justify-center gap-2 text-center shadow-[4px_4px_0px_rgba(0,0,0,1)] text-xs"
+                    >
+                      <span>🚀 BAYAR SEKARANG (IN-APP MIDTRANS)</span>
+                    </button>
+                    {createdOrder?.snapRedirectUrl && (
+                      <a
+                        href={createdOrder.snapRedirectUrl}
+                        className="w-full py-2.5 bg-white text-black font-semibold hover:bg-gray-100 transition border-2 border-black cursor-pointer uppercase flex items-center justify-center text-[10px] text-center"
+                      >
+                        ATAU BUKA DI LINK EKSTERNAL
+                      </a>
                     )}
                   </div>
                 </div>

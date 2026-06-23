@@ -9,10 +9,12 @@ import {
   User as UserIcon, Store, Landmark, ShoppingBag, Eye, Star, CheckSquare, 
   Tag, MapPin, KeyRound, Heart, ChevronRight, FileText, UploadCloud, AlertCircle,
   MessageSquare, Printer, Map, ShieldCheck, Lock, UserCheck, Globe,
-  Activity, Wrench, Cpu, Send, CheckCircle, XCircle, Wifi, AlertTriangle
+  Activity, Wrench, Cpu, Send, CheckCircle, XCircle, Wifi, AlertTriangle, Download
 } from 'lucide-react';
 import { OrderStatus, ApplicationStatus } from '../types';
 import MapPicker from './MapPicker';
+import { jsPDF } from 'jspdf';
+import { compressAndResizeImage } from '../utils/imageCompressor';
 
 interface DashboardUserProps {
   onOpenCheckout: (order: any) => void;
@@ -24,10 +26,11 @@ interface DashboardUserProps {
 export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpenChat, onTrackOrder }: DashboardUserProps) {
   const { 
     currentUser, orders, wishlist, products, stores, followedStores, toggleFollowStore, refreshAllData, settings, setCurrentUser, setAuthOpen,
-    userDashboardInitialTab, setUserDashboardInitialTab
+    userDashboardInitialTab, setUserDashboardInitialTab, addToast
   } = useApp();
 
   const [activeTab, setActiveTab ] = useState<'profile' | 'orders' | 'wishlist' | 'shop_register' | 'follows' | 'security' | 'address' | 'diagnostics'>('profile');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED'>('ALL');
 
   useEffect(() => {
     if (userDashboardInitialTab && userDashboardInitialTab !== 'profile') {
@@ -316,6 +319,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       const data = await res.json();
       if (res.ok) {
         setProfileFeedback("Profil Anda berhasil diperbarui!");
+        addToast("PROFIL DIPERBARUI", "Detail profil Anda berhasil disinkronkan ke database.", "success");
         setCurrentUser(data.user);
         setTimeout(() => setProfileFeedback(null), 3000);
       } else {
@@ -365,6 +369,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       const data = await res.json();
       if (res.ok) {
         setSecurityFeedback("Pengaturan akun dan keamanan berhasil disimpan!");
+        addToast("KEAMANAN DIPERBARUI", "Keamanan akun & data personal Anda berhasil ditingkatkan.", "success");
         setCurrentUser(data.user);
         setOldPassword('');
         setNewPassword('');
@@ -442,6 +447,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       const data = await res.json();
       if (res.ok) {
         setAddressFeedback("Alamat pengiriman berhasil diperbarui!");
+        addToast("ALAMAT PENGIRIMAN", "Detail alamat baru Anda berhasil didaftarkan.", "success");
         setCurrentUser(data.user);
         setTimeout(() => setAddressFeedback(null), 3000);
       } else {
@@ -482,6 +488,201 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any | null>(null);
   const [chatLoadingMap, setChatLoadingMap] = useState<Record<string, boolean>>({});
 
+  const handleDownloadPDFInvoice = (ord: any) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      // Colors
+      const primaryColor = [17, 17, 17]; // #111111
+      const accentColor = [153, 27, 27]; // #991b1b
+      const grayColor = [107, 114, 128]; // #6B7280
+
+      // Title Section
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text('TOKO SIPIL ALTERNATIVE', 20, 25);
+
+      // Subtitle
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('Multi-Vendor Streetwear, Band Merch & Custom Coutures Platform', 20, 30);
+
+      // Invoice info (top-right orientation)
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+      doc.text(`INVOICE: #${ord.id.substring(0, 12).toUpperCase()}`, 130, 25);
+
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(`Tanggal: ${new Date(ord.createdAt).toLocaleString('id-ID')}`, 130, 30);
+      doc.text(`Status: ${ord.status.toUpperCase()}`, 130, 34);
+
+      // Horizontal line separator
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.5);
+      doc.line(20, 38, 190, 38);
+
+      // Buyer Info
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('INFORMASI PEMBELI (BUYER):', 20, 46);
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text(`Nama: ${ord.address?.receiver || 'Noname'}`, 20, 51);
+      doc.text(`Telepon: ${ord.address?.phone || '-'}`, 20, 55);
+      
+      const addrDetail = `${ord.address?.detail || ''}${ord.address?.rtrw ? `, RT/RW: ${ord.address.rtrw}` : ''}${ord.address?.city ? `, ${ord.address.city}` : ''}`;
+      // Split address so it fits nicely
+      const addressLines = doc.splitTextToSize(addrDetail, 80);
+      doc.text(addressLines, 20, 59);
+
+      // Store / Seller Info (Right side)
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('INFORMASI TOKO (SELLER):', 110, 46);
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text(`Mitra Store: ${ord.storeName || 'Merchant'}`, 110, 51);
+      doc.text(`Status: Verified Merchant`, 110, 55);
+      doc.text(`Metode Bayar: MIDTRANS SNAP SETTLEMENT`, 110, 59);
+
+      // Horizontal divider
+      doc.line(20, 72, 190, 72);
+
+      // Rincian Item Title
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+      doc.text('RINCIAN PESANAN BARANG', 20, 78);
+
+      // Table Header
+      doc.setFillColor(0, 0, 0);
+      doc.rect(20, 82, 170, 7, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text('Item Description / Spesifikasi', 22, 86.5);
+      doc.text('Harga', 115, 86.5);
+      doc.text('Qty', 145, 86.5);
+      doc.text('Subtotal', 165, 86.5);
+
+      let currentY = 94;
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('Helvetica', 'normal');
+
+      ord.items.forEach((item: any, idx: number) => {
+        // Draw thin support line
+        if (idx > 0) {
+          doc.setDrawColor(220, 220, 220);
+          doc.setLineWidth(0.2);
+          doc.line(20, currentY - 5, 190, currentY - 5);
+        }
+
+        const nameStr = `${item.name || 'Produk'}`;
+        const specStr = `Size: ${item.size || '-'} | Color: ${item.color || '-'}`;
+        
+        doc.setFont('Helvetica', 'bold');
+        doc.text(nameStr, 22, currentY);
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+        doc.text(specStr, 22, currentY + 3.5);
+
+        // Prices / Qty
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Rp${item.discountPrice.toLocaleString('id-ID')}`, 115, currentY);
+        doc.text(`${item.quantity}`, 145, currentY);
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`Rp${(item.discountPrice * item.quantity).toLocaleString('id-ID')}`, 165, currentY);
+        doc.setFont('Helvetica', 'normal');
+
+        currentY += 10;
+      });
+
+      // Dark Line separator
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.5);
+      doc.line(20, currentY - 3, 190, currentY - 3);
+
+      currentY += 4;
+
+      // Delivery info (left)
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('METODE PENGIRIMAN / EKSPEDISI', 22, currentY);
+      doc.setFont('Helvetica', 'normal');
+      doc.text(`Ekspedisi: ${ord.courier || 'STANDAR'}`, 22, currentY + 4);
+      if (ord.resiNo) {
+        doc.text(`No. Resi: ${ord.resiNo}`, 22, currentY + 8);
+      } else {
+        doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+        doc.text('Resi pengiriman belum diinput oleh seller.', 22, currentY + 8);
+        doc.setTextColor(0, 0, 0);
+      }
+
+      // Calculations panel (right alignment)
+      const labelX = 140;
+      const valX = 165;
+      
+      doc.setFontSize(8);
+      doc.text('Subtotal Items:', labelX, currentY);
+      const subTotal = ord.totalProductPrice || ord.items.reduce((acc: number, it: any) => acc + (it.discountPrice * it.quantity), 0);
+      doc.text(`Rp${subTotal.toLocaleString('id-ID')}`, valX, currentY);
+
+      doc.text('Ongkos Kirim:', labelX, currentY + 4);
+      doc.text(`Rp${(ord.shippingCost || 0).toLocaleString('id-ID')}`, valX, currentY + 4);
+
+      let lineOffset = 8;
+      if (ord.discount > 0) {
+        doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+        doc.text('Potongan Voucher:', labelX, currentY + lineOffset);
+        doc.text(`-Rp${ord.discount.toLocaleString('id-ID')}`, valX, currentY + lineOffset);
+        doc.setTextColor(0, 0, 0);
+        lineOffset += 4;
+      }
+
+      doc.setFontSize(7.5);
+      doc.text('Platform Admin Fee:', labelX, currentY + lineOffset);
+      doc.text(`Rp${(ord.platformFee || 2000).toLocaleString('id-ID')}`, valX, currentY + lineOffset);
+      lineOffset += 6;
+
+      // Final total
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+      doc.text('Total Tagihan:', labelX, currentY + lineOffset);
+      doc.text(`Rp${ord.totalAmount.toLocaleString('id-ID')}`, valX, currentY + lineOffset);
+
+      currentY += lineOffset + 12;
+
+      // Bottom legal line
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(20, currentY, 190, currentY);
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('Bukti pembelian ini sah diterbitkan secara elektronik oleh Toko Sipil Alternative.', 22, currentY + 4);
+      doc.text('Gunakan bukti PDF ini sebagai laporan resmi komisi dan pelunasan.', 22, currentY + 7);
+
+      // Trigger standard save/download action
+      doc.save(`Invoice_TokoSipil_${ord.id.substring(0, 8).toUpperCase()}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert("Gagal mengunduh invoice: " + (e as Error).message);
+    }
+  };
+
   const handleCancelOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cancelOrderId) return;
@@ -497,6 +698,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       });
       if (res.ok) {
         setFeedback("Pesanan dibatalkan (tidak jadi bayar). Stock dikembalikan.");
+        addToast("PEMBATALAN SUKSES", "Pesanan Anda berhasil dibatalkan.", "info");
         setCancelOrderId(null);
         setCancelReasonValue('');
         await refreshAllData();
@@ -580,6 +782,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
 
       if (res.ok) {
         setFeedback("Pendaftaran Pembukaan Toko Anda Berhasil Diajukan! Status: Pending Approval.");
+        addToast("REGISTRASI TOKO", "Pendaftaran store Anda berhasil diajukan ke admin!", "success");
         setActiveTab('profile');
         setShopName('');
         setShopUsername('');
@@ -587,6 +790,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       } else {
         const err = await res.json();
         setFeedback("Gagal: " + err.error);
+        addToast("REGISTRASI TOKO GAGAL", err.error || "Gagal mendaftar.", "error");
         setTimeout(() => setFeedback(null), 4000);
       }
     } catch (e) {
@@ -600,6 +804,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       const res = await fetch(`/api/orders/${orderId}/complete`, { method: 'POST' });
       if (res.ok) {
         setFeedback("Paket sukses dikonfirmasi sampai. Saldo diteruskan ke Wallet Seller.");
+        addToast("STATUS PESANAN NYATA", "Pesanan selesai! Terimah kasih atas konfirmasi Anda.", "success");
         await refreshAllData();
         setTimeout(() => setFeedback(null), 4000);
       }
@@ -637,6 +842,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
 
       if (res.ok) {
         setFeedback(`Ulasan ulasan bintang ${rStar} untuk produk berhasil terkirim!`);
+        addToast("REVIEW TERKIRIM", `Berhasil mengirimkan ulasan bintang ${rStar}!`, "success");
         setReviewText({ ...reviewText, [orderId]: '' });
         await refreshAllData();
         setTimeout(() => setFeedback(null), 3000);
@@ -651,6 +857,15 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
 
   // Filter lists orders
   const myBuyerOrders = orders.filter(o => o.buyerId === currentUser?.id);
+  const filteredOrders = myBuyerOrders.filter(ord => {
+    if (orderStatusFilter === 'ALL') return true;
+    if (orderStatusFilter === 'PENDING') return ord.status === OrderStatus.PENDING;
+    if (orderStatusFilter === 'PAID') return ord.status === OrderStatus.PAID || ord.status === OrderStatus.DP_PAID;
+    if (orderStatusFilter === 'SHIPPED') return ord.status === OrderStatus.SHIPPED || ord.status === OrderStatus.DELIVERED;
+    if (orderStatusFilter === 'COMPLETED') return ord.status === OrderStatus.COMPLETED;
+    if (orderStatusFilter === 'CANCELLED') return ord.status === OrderStatus.CANCELLED || ord.status === OrderStatus.FAILED;
+    return true;
+  });
   const myWishlistedProducts = products.filter(p => wishlist.includes(p.id));
   const myFollowedStores = stores.filter(s => followedStores.includes(s.id));
   
@@ -876,14 +1091,15 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
                           <input 
                             type="file" 
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setEditAvatar(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await compressAndResizeImage(file, 256, 256, 0.7);
+                                  setEditAvatar(compressed);
+                                } catch (err: any) {
+                                  console.error("Gagal memproses foto profil:", err);
+                                }
                               }
                             }}
                             className="hidden"
@@ -940,11 +1156,43 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
         <div className="space-y-6 font-mono text-xs" id="orders-pane">
           <h2 className="font-serif text-xl font-bold uppercase tracking-tight block">RIWAYAT TRANSKASI BLANJA AKTIF ({myBuyerOrders.length})</h2>
 
-          {myBuyerOrders.length === 0 ? (
-            <p className="italic text-gray-400">Belum ada riwayat pemesanan baju.</p>
+          {/* Status Filter Bar - Brutalist Styled */}
+          <div className="flex flex-wrap items-center gap-2 bg-stone-50 p-3 border-2 border-black" id="order-status-filter-bar">
+            <span className="font-bold text-[10px] uppercase text-gray-800 select-none mr-1 flex items-center gap-1">
+              📌 STATUS FILTER:
+            </span>
+            {[
+              { id: 'ALL', label: 'Semua (All)', count: myBuyerOrders.length },
+              { id: 'PENDING', label: 'Belum Bayar (Pending)', count: myBuyerOrders.filter(o => o.status === OrderStatus.PENDING).length },
+              { id: 'PAID', label: 'Lunas/DP (Paid)', count: myBuyerOrders.filter(o => o.status === OrderStatus.PAID || o.status === OrderStatus.DP_PAID).length },
+              { id: 'SHIPPED', label: 'Dikirim (Shipped)', count: myBuyerOrders.filter(o => o.status === OrderStatus.SHIPPED || o.status === OrderStatus.DELIVERED).length },
+              { id: 'COMPLETED', label: 'Selesai (Completed)', count: myBuyerOrders.filter(o => o.status === OrderStatus.COMPLETED).length },
+              { id: 'CANCELLED', label: 'Batal/Gagal', count: myBuyerOrders.filter(o => o.status === OrderStatus.CANCELLED || o.status === OrderStatus.FAILED).length },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                id={`filter-btn-${tab.id.toLowerCase()}`}
+                onClick={() => setOrderStatusFilter(tab.id as any)}
+                className={`px-3 py-1.5 border-2 transition font-mono font-bold uppercase text-[9px] cursor-pointer shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:shadow-none translate-y-0.5 active:translate-y-1 ${
+                  orderStatusFilter === tab.id 
+                    ? 'bg-black text-white border-black' 
+                    : 'bg-white text-black border-stone-300 hover:border-black'
+                }`}
+              >
+                {tab.label} <span className="ml-0.5 px-1 py-0.2 bg-stone-200 text-black text-[8.5px] rounded-sm">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {filteredOrders.length === 0 ? (
+            <div className="p-8 text-center bg-stone-50 border-2 border-dashed border-stone-400 font-mono text-xs uppercase text-gray-400">
+              {myBuyerOrders.length === 0 
+                ? "Belum ada riwayat pemesanan baju." 
+                : `Tidak ada pesanan dengan status "${orderStatusFilter}" ditemukan.`}
+            </div>
           ) : (
             <div className="space-y-6">
-              {myBuyerOrders.map((ord) => (
+              {filteredOrders.map((ord) => (
                 <div key={ord.id} className="bg-white border-2 border-black p-5 maternal-shadow-sm space-y-4">
                   {/* Top line panel information */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-2">
@@ -1148,6 +1396,13 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
                           className="flex items-center gap-1.5 bg-white hover:bg-[#111] hover:text-white text-black font-extrabold px-3 py-1.5 text-[9px] tracking-wider uppercase transition border-2 border-black cursor-pointer"
                         >
                           <FileText className="w-3.5 h-3.5" /> Bukti Pembelian (Invoice)
+                        </button>
+
+                        <button
+                          onClick={() => handleDownloadPDFInvoice(ord)}
+                          className="flex items-center gap-1.5 bg-red-800 hover:bg-black text-white font-extrabold px-3 py-1.5 text-[9px] tracking-wider uppercase transition border-2 border-black cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-white" /> Unduh Invoice (PDF)
                         </button>
 
                         <button
@@ -1693,14 +1948,15 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
                           <input 
                             type="file" 
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setShopLogo(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await compressAndResizeImage(file, 400, 400, 0.75);
+                                  setShopLogo(compressed);
+                                } catch (err: any) {
+                                  console.error("Gagal memproses logo toko:", err);
+                                }
                               }
                             }}
                             className="hidden"
@@ -2118,13 +2374,21 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
             </div>
 
             {/* Footer buttons/interactive action points */}
-            <div className="flex justify-between items-center pt-4 border-t-4 border-black font-serif text-sm print:hidden">
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 bg-black hover:bg-red-800 text-white font-bold px-3 py-2 text-xs border-2 border-black uppercase cursor-pointer tracking-wider"
-              >
-                <Printer className="w-4 h-4 text-white" /> CETAK BUKTI PEMBELIAN (PDF)
-              </button>
+            <div className="flex flex-wrap gap-2 justify-between items-center pt-4 border-t-4 border-black font-serif text-sm print:hidden">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 bg-black hover:bg-neutral-800 text-white font-bold px-3 py-2 text-xs border-2 border-black uppercase cursor-pointer tracking-wider"
+                >
+                  <Printer className="w-4 h-4 text-white" /> CETAK BUKTI PEMBELIAN (PDF)
+                </button>
+                <button
+                  onClick={() => handleDownloadPDFInvoice(selectedInvoiceOrder)}
+                  className="flex items-center gap-1.5 bg-red-800 hover:bg-black text-white font-bold px-3 py-2 text-xs border-2 border-black uppercase cursor-pointer tracking-wider"
+                >
+                  <Download className="w-4 h-4 text-white" /> UNDUH INVOICE (PDF FILE)
+                </button>
+              </div>
 
               <button
                 onClick={() => setSelectedInvoiceOrder(null)}

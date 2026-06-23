@@ -32,6 +32,7 @@ export interface User {
   addressReceiver?: string;
   addressPhone?: string;
   addressLatLng?: { lat: number; lng: number };
+  sessionToken?: string;
 }
 
 export enum ApplicationStatus {
@@ -257,6 +258,7 @@ export interface Voucher {
   amount: number;
   minPurchase: number;
   storeId?: string; // null if platform wide
+  productId?: string; // null if store wide
   active: boolean;
 }
 
@@ -271,6 +273,25 @@ export interface Banner {
 export interface Settings {
   commissionPercent: number; // e.g. 5 for 5%
   adminWhatsapp?: string; // e.g. "628123456789"
+  appLogo?: string;
+  appName?: string;
+}
+
+export interface AndroidConfig {
+  appName: string;
+  packageName: string;
+  appVersion: string;
+  versionCode: string;
+  serverUrl: string;
+  statusBarColor: string;
+  splashStyle: 'minimal' | 'gothic' | 'streetwear';
+  enableGPS: boolean;
+  enableCamera: boolean;
+  enablePush: boolean;
+  enableHardwareAcc: boolean;
+  customDownloadUrl?: string; // Persistent external download link (e.g. Google Drive) configured by Admin!
+  lastUploadedSize?: number;  // Saved size of uploaded APK
+  lastUploadedAt?: string;    // Saved timestamp of uploaded APK
 }
 
 export interface DiagnosticReport {

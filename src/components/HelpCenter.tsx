@@ -215,11 +215,11 @@ export default function HelpCenter() {
         <div className="space-y-2 max-w-lg">
           <div className="flex items-center gap-2 text-amber-400 font-bold">
             <Sparkles className="w-5 h-5" />
-            <span className="uppercase text-[10px] tracking-widest font-mono">HOTLINE SIAGA TOKOSIPIL UNI-SYSTEM</span>
+            <span className="uppercase text-[10px] tracking-widest font-mono">HOTLINE SIAGA TOKOSIPIL ALL-SYSTEM EXCELLENCE</span>
           </div>
           <h3 className="font-serif text-xl md:text-2xl font-black text-white uppercase leading-none">MASIH MEMILIKI KENDALA EKSTRA?</h3>
           <p className="text-[10px] text-gray-400 leading-relaxed uppercase">
-            Hubungi penanggung jawab logistik kemahasiswaan ataupun perwakilan biro humas HMTS Unikom langsung melalui media pesan instant. Siaga jam kerja (Mon-Fri 09.00 - 17.00 WIB).
+            Hubungi penanggung jawab logistik ataupun perwakilan layanan pelanggan Toko Sipil langsung melalui media pesan instant. Siaga jam kerja (Mon-Fri 09.00 - 17.00 WIB).
           </p>
         </div>
 
@@ -235,7 +235,7 @@ export default function HelpCenter() {
             <span>KIRIM WHATSAPP CHAT</span>
           </a>
           <a 
-            href="mailto:hmts_unikom@mail.com"
+            href="mailto:support@tokosipil.com"
             className="bg-[#222] hover:bg-[#333] text-white font-bold py-3 px-5 border-2 border-zinc-700 flex items-center justify-center gap-2 text-[10px] tracking-wider transition-all"
           >
             <Mail className="w-4 h-4" />

@@ -13,7 +13,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onClose }: AuthModalProps) {
-  const { login, signup, setActivePage, setUserDashboardInitialTab } = useApp();
+  const { login, signup, setActivePage, setUserDashboardInitialTab, settings } = useApp();
 
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -101,8 +101,14 @@ export default function AuthModal({ onClose }: AuthModalProps) {
         </button>
 
         {/* Brand visual header */}
-        <div className="text-center mb-6">
-          <span className="font-serif text-3xl font-black text-black select-none tracking-tighter">TOKO SIPIL</span>
+        <div className="flex flex-col items-center justify-center text-center mb-6">
+          <img 
+            src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"} 
+            alt={settings?.appName || "Logo Toko Sipil"} 
+            className="w-12 h-12 rounded-lg border-2 border-black object-cover mb-2"
+            referrerPolicy="no-referrer"
+          />
+          <span className="font-serif text-3xl font-black text-black select-none tracking-tighter col-span-full">{settings?.appName || "TOKO SIPIL"}</span>
           <p className="font-mono text-[9px] text-[#222] tracking-widest mt-1 uppercase">
             {isForgotPassword ? 'PASSWORD RESET PORTAL' : 'ARCHIVE CREDENTIAL PORTAL'}
           </p>

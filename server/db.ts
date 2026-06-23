@@ -9,10 +9,11 @@ import {
   User, Role, Store, StoreApplication, Product, Category, Order, OrderStatus,
   Wallet, WalletTransaction, BankAccount, Withdrawal, Chat, Message, Review,
   Voucher, Banner, Settings, ApplicationStatus, BankVerificationStatus, WithdrawalStatus,
-  DiagnosticReport
+  DiagnosticReport, AndroidConfig
 } from '../src/types';
 
 const DB_PATH = path.join(process.cwd(), 'db.json');
+const DB_BACKUP_PATH = path.join(process.cwd(), 'db_backup.json');
 
 export interface FullDatabase {
   users: User[];
@@ -33,6 +34,7 @@ export interface FullDatabase {
   settings: Settings;
   follows: { userId: string; storeId: string; }[];
   diagnosticReports?: DiagnosticReport[];
+  androidConfig?: AndroidConfig;
 }
 
 export function loadDb(): FullDatabase {
@@ -42,9 +44,44 @@ export function loadDb(): FullDatabase {
       const data = JSON.parse(raw);
       if (!data.follows) data.follows = [];
       if (!data.diagnosticReports) data.diagnosticReports = [];
+      if (!data.androidConfig) {
+        data.androidConfig = {
+          appName: 'Toko Sipil Official',
+          packageName: 'com.tokosipil.official',
+          appVersion: '1.0.0',
+          versionCode: '1',
+          serverUrl: 'https://ais-dev-ao4ij3eqewiigwwcl4kr6t-934223265379.asia-southeast1.run.app',
+          statusBarColor: '#0b2545',
+          splashStyle: 'gothic',
+          enableGPS: true,
+          enableCamera: true,
+          enablePush: false,
+          enableHardwareAcc: true
+        };
+      }
+      // Synchronize with backup if it doesn't exist
+      if (!fs.existsSync(DB_BACKUP_PATH)) {
+        fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      }
       return data;
     } catch (e) {
-      console.error("Error reading database file, using fallback seeding", e);
+      console.error("Error reading database file, attempting recovery from backup", e);
+    }
+  }
+
+  // Attempt recovery from backup file if main file is missing or corrupted
+  if (fs.existsSync(DB_BACKUP_PATH)) {
+    try {
+      const raw = fs.readFileSync(DB_BACKUP_PATH, 'utf-8');
+      const data = JSON.parse(raw);
+      if (!data.follows) data.follows = [];
+      if (!data.diagnosticReports) data.diagnosticReports = [];
+      // Restore the main db file
+      fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      console.log("✓ Database successfully recovered from backup file (db_backup.json)");
+      return data;
+    } catch (e) {
+      console.error("Error reading backup database file", e);
     }
   }
   
@@ -453,7 +490,20 @@ export function loadDb(): FullDatabase {
     follows: [
       { userId: 'usr_buyer', storeId: 'str_maternal' }
     ],
-    diagnosticReports: []
+    diagnosticReports: [],
+    androidConfig: {
+      appName: 'Toko Sipil Official',
+      packageName: 'com.tokosipil.official',
+      appVersion: '1.0.0',
+      versionCode: '1',
+      serverUrl: 'https://ais-dev-ao4ij3eqewiigwwcl4kr6t-934223265379.asia-southeast1.run.app',
+      statusBarColor: '#0b2545',
+      splashStyle: 'gothic',
+      enableGPS: true,
+      enableCamera: true,
+      enablePush: false,
+      enableHardwareAcc: true
+    }
   };
 
   saveDb(initialDb);
@@ -463,6 +513,7 @@ export function loadDb(): FullDatabase {
 export function saveDb(data: FullDatabase) {
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(data, null, 2), 'utf-8');
   } catch (e) {
     console.error("Error saving database", e);
   }

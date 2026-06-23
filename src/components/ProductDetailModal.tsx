@@ -6,15 +6,16 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, Review } from '../types';
-import { X, Heart, Star, ShoppingCart, ShieldCheck, Scale, Ruler, MessageSquare } from 'lucide-react';
+import { X, Heart, Star, ShoppingCart, ShieldCheck, Scale, Ruler, MessageSquare, CreditCard, ShoppingBag } from 'lucide-react';
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
   onOpenChat: () => void;
+  onOpenCheckout?: () => void;
 }
 
-export default function ProductDetailModal({ product, onClose, onOpenChat }: ProductDetailModalProps) {
+export default function ProductDetailModal({ product, onClose, onOpenChat, onOpenCheckout }: ProductDetailModalProps) {
   const { 
     currentUser, addToCart, wishlist, toggleWishlist, followedStores, toggleFollowStore, refreshAllData, setAuthOpen 
   } = useApp();
@@ -85,6 +86,28 @@ export default function ProductDetailModal({ product, onClose, onOpenChat }: Pro
       setToastMessage(null);
       onClose();
     }, 2000);
+  };
+
+  const handleBuyNow = () => {
+    if (!currentUser) {
+      setToastMessage("Silakan login terlebih dahulu untuk checkout.");
+      setTimeout(() => setAuthOpen(true), 1200);
+      return;
+    }
+    if (product.stock === 0) {
+      setToastMessage("Stok produk habis.");
+      return;
+    }
+    // Tambahkan item yang dikonfigurasikan langsung ke keranjang
+    addToCart(product, qty, selectedSize, selectedColor);
+    setToastMessage(`Sukses menambahkan ke keranjang! Membuka halaman checkout...`);
+    setTimeout(() => {
+      setToastMessage(null);
+      onClose();
+      if (onOpenCheckout) {
+        onOpenCheckout();
+      }
+    }, 1200);
   };
 
   const handleChatSeller = async () => {
@@ -305,25 +328,40 @@ export default function ProductDetailModal({ product, onClose, onOpenChat }: Pro
             </div>
 
             {/* Quick checkout CTA triggers */}
-            <div className="grid grid-cols-2 gap-2 font-mono">
+            <div className="flex flex-col gap-2 font-mono">
+              {/* Beli Sekarang - Direct Primary Action */}
               <button
                 disabled={product.stock === 0}
-                onClick={handleAddToCart}
-                className="w-full text-center maternal-btn flex items-center justify-center gap-1.5 py-3 cursor-pointer"
-                id="add-to-cart-drawer-btn"
+                onClick={handleBuyNow}
+                className="w-full text-center bg-neutral-950 hover:bg-neutral-800 text-white border-2 border-black flex items-center justify-center gap-2 py-3.5 cursor-pointer font-extrabold uppercase transition duration-200 shadow-[3px_3px_0px_rgba(0,0,0,1)] select-none disabled:opacity-50"
+                id="buy-now-direct-btn"
               >
-                <ShoppingCart className="w-4 h-4 text-black" />
-                <span>BAG TO BASKET</span>
+                <CreditCard className="w-4 h-4 text-white" />
+                <span>💳 BELI SEKARANG</span>
               </button>
 
-              <button
-                onClick={handleChatSeller}
-                className="w-full text-center maternal-btn-outline flex items-center justify-center gap-1.5 py-3 cursor-pointer"
-                id="initiate-chat-seller-btn"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>CHAT SELLER</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {/* Masukkan Keranjang */}
+                <button
+                  disabled={product.stock === 0}
+                  onClick={handleAddToCart}
+                  className="w-full text-center bg-white hover:bg-neutral-100 text-black border-2 border-black flex items-center justify-center gap-1.5 py-3 cursor-pointer font-bold uppercase transition duration-200 shadow-[2px_2px_0px_rgba(0,0,0,1)] disabled:opacity-50"
+                  id="add-to-cart-drawer-btn"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>🛒 (+ KERANJANG)</span>
+                </button>
+
+                {/* Chat Seller */}
+                <button
+                  onClick={handleChatSeller}
+                  className="w-full text-center maternal-btn-outline flex items-center justify-center gap-1.5 py-3 cursor-pointer uppercase text-xs"
+                  id="initiate-chat-seller-btn"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>CHAT SELLER</span>
+                </button>
+              </div>
             </div>
           </div>
 

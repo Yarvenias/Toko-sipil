@@ -14,11 +14,12 @@ import { Product, OrderStatus, BankVerificationStatus, WithdrawalStatus } from '
 import { 
   ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend 
 } from 'recharts';
+import { compressAndResizeImage } from '../utils/imageCompressor';
 
 export default function DashboardSeller() {
-  const { currentUser, categories, products, orders, refreshAllData } = useApp();
+  const { currentUser, categories, products, orders, vouchers, refreshAllData } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'wallet' | 'withdraw' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'wallet' | 'withdraw' | 'settings' | 'vouchers'>('overview');
 
   // Seller's specific associated Store and Wallet
   const [store, setStore] = useState<any>(null);
@@ -32,9 +33,20 @@ export default function DashboardSeller() {
   const [withdraws, setWithdraws] = useState<any[]>([]);
   const [walletTxs, setWalletTxs] = useState<any[]>([]);
 
+  // Voucher Form States
+  const [vchCode, setVchCode] = useState('');
+  const [vchDiscountType, setVchDiscountType] = useState<'NOMINAL' | 'PERCENTAGE'>('NOMINAL');
+  const [vchAmount, setVchAmount] = useState('');
+  const [vchMinPurchase, setVchMinPurchase] = useState('0');
+  const [vchScope, setVchScope] = useState<'STORE' | 'PRODUCT'>('STORE');
+  const [vchProductId, setVchProductId] = useState('');
+  const [vchFeedback, setVchFeedback] = useState<string | null>(null);
+  const [vchError, setVchError] = useState<string | null>(null);
+
   // Feedback flags
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [productErrors, setProductErrors] = useState<string[]>([]);
 
   // Form States
   // 1. Product Form Fields
@@ -146,7 +158,90 @@ export default function DashboardSeller() {
   }, [categories]);
 
   // Product edit state handlers
+  // Voucher managing actions
+  const handleCreateVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVchError(null);
+    setVchFeedback(null);
+
+    const codeClean = vchCode.trim().toUpperCase().replace(/\s+/g, '');
+    if (!codeClean) {
+      setVchError("Kode voucher wajib diisi.");
+      return;
+    }
+    const amt = Number(vchAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setVchError("Nominal potongan diskon harus lebih besar dari 0.");
+      return;
+    }
+    const minP = Number(vchMinPurchase) || 0;
+    if (vchDiscountType === 'PERCENTAGE' && amt > 100) {
+      setVchError("Diskon persentase tidak boleh lebih dari 100%.");
+      return;
+    }
+
+    if (vchScope === 'PRODUCT' && !vchProductId) {
+      setVchError("Pilih produk spesifik yang akan diberikan voucher.");
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: codeClean,
+          type: 'STORE',
+          discountType: vchDiscountType,
+          amount: amt,
+          minPurchase: minP,
+          storeId: store?.id,
+          productId: vchScope === 'PRODUCT' ? vchProductId : undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setVchError(data.error || "Gagal membuat voucher.");
+      } else {
+        setVchFeedback(`Voucher ${codeClean} berhasil diterbitkan.`);
+        // Reset form
+        setVchCode('');
+        setVchAmount('');
+        setVchMinPurchase('0');
+        setVchScope('STORE');
+        setVchProductId('');
+        await refreshAllData();
+      }
+    } catch (err) {
+      console.error(err);
+      setVchError("Koneksi gagal.");
+    }
+  };
+
+  const handleDeleteVoucher = async (id: string) => {
+    if (!window.confirm("Yakin ingin menghapus voucher ini?")) return;
+    setVchError(null);
+    setVchFeedback(null);
+    try {
+      const res = await fetch(`/api/vouchers/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setVchFeedback("Voucher telah berhasil dihapus.");
+        await refreshAllData();
+      } else {
+        setVchError(data.error || "Gagal menghapus voucher.");
+      }
+    } catch (err) {
+      console.error(err);
+      setVchError("Gagal menghapus voucher.");
+    }
+  };
+
   const handleEditProductClick = (product: Product) => {
+    setProductErrors([]);
     setEditingProductId(product.id);
     setProdName(product.name);
     setProdSku(product.sku);
@@ -169,6 +264,7 @@ export default function DashboardSeller() {
   };
 
   const handleCancelEdit = () => {
+    setProductErrors([]);
     setEditingProductId(null);
     setProdName('');
     setProdSku('');
@@ -197,8 +293,38 @@ export default function DashboardSeller() {
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!store) return;
-    if (!prodName || !prodSku || !prodPrice || !prodCatId) {
-      setFeedback("Harap isi seluruh field bertanda bintang.");
+    setProductErrors([]);
+
+    const errors: string[] = [];
+
+    if (!prodName.trim()) {
+      errors.push("Nama Produk wajib diisi.");
+    }
+    if (!prodSku.trim()) {
+      errors.push("SKU Produk wajib diisi.");
+    }
+    if (!prodPrice || Number(prodPrice) <= 0) {
+      errors.push("Harga Produk harus berupa angka positif lebih dari 0.");
+    }
+    if (!prodCatId) {
+      errors.push("Pilih kategori produk.");
+    }
+    if (!prodWeight || Number(prodWeight) <= 0) {
+      errors.push("Berat Paket harus berupa angka positif.");
+    }
+    if (!prodImages || prodImages.length < 1) {
+      errors.push("Kira-kira memerlukan minimal 1 foto produk.");
+    }
+    if (prodIsPreOrder) {
+      const dp = Number(prodPreOrderDp);
+      if (isNaN(dp) || dp < 1 || dp > 100) {
+        errors.push("Persentase DP Pre-Order harus bernilai di antara 1% s/d 100%.");
+      }
+    }
+
+    if (errors.length > 0) {
+      setProductErrors(errors);
+      setFeedback("Gagal menyimpan produk. Silakan periksa detail perbaikan formulir.");
       return;
     }
 
@@ -235,6 +361,7 @@ export default function DashboardSeller() {
           ? `Sukses memperbarui produk streetwear "${prodName}"!` 
           : `Sukses mengupload produk streetwear "${prodName}"!`
         );
+        setProductErrors([]);
         
         // Reset state
         setEditingProductId(null);
@@ -262,13 +389,15 @@ export default function DashboardSeller() {
 
         await refreshAllData();
         setActiveTab('products');
-        setTimeout(() => setFeedback(null), 3500);
+        setTimeout(() => setFeedback(null), 4500);
       } else {
         const errorData = await res.json();
+        setProductErrors([errorData.error]);
         setFeedback(`Gagal: ${errorData.error}`);
       }
     } catch (err) {
       console.error(err);
+      setProductErrors(["Gagal menghubungi server. Silakan coba kembali."]);
       setFeedback("Gagal memproses produk.");
     }
   };
@@ -448,6 +577,7 @@ export default function DashboardSeller() {
   // Filtering store orders
   const myStoreOrders = store ? orders.filter(o => o.storeId === store.id) : [];
   const myStoreProducts = store ? products.filter(p => p.storeId === store.id) : [];
+  const myStoreVouchers = store ? vouchers.filter(v => v.storeId === store.id) : [];
 
   // Monthly Sales Report calculations
   const monthlyOrders = myStoreOrders.filter(o => {
@@ -651,6 +781,12 @@ export default function DashboardSeller() {
               className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'withdraw' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
             >
               WITHDRAW SALDO MY BANK
+            </button>
+            <button 
+              onClick={() => setActiveTab('vouchers')}
+              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'vouchers' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
+            >
+              VOUCHERS ({myStoreVouchers.length})
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
@@ -1185,16 +1321,19 @@ export default function DashboardSeller() {
                                 type="file"
                                 accept="image/*"
                                 className="hidden"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
+                                    setFeedback("Sedang mengompresi gambar...");
+                                    try {
+                                      const compressedBase64 = await compressAndResizeImage(file);
                                       const copy = [...prodImages];
-                                      copy[idx] = reader.result as string;
+                                      copy[idx] = compressedBase64;
                                       setProdImages(copy.filter(Boolean));
-                                    };
-                                    reader.readAsDataURL(file);
+                                      setFeedback("Gambar berhasil dikompresi & dimuat.");
+                                    } catch (err: any) {
+                                      setFeedback(`Gagal memuat gambar: ${err.message}`);
+                                    }
                                   }
                                 }}
                               />
@@ -1212,22 +1351,28 @@ export default function DashboardSeller() {
                           accept="image/*"
                           multiple
                           className="hidden"
-                          onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []) as File[];
                             if (files.length > 0) {
+                              setFeedback("Sedang melakukan kompresi massal foto...");
                               const loadedImages: string[] = [];
-                              let processed = 0;
-                              files.slice(0, 5).forEach((file: any, index) => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  loadedImages[index] = reader.result as string;
-                                  processed++;
-                                  if (processed === Math.min(files.length, 5)) {
-                                    setProdImages(loadedImages.filter(Boolean));
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              });
+                              const targetFiles = files.slice(0, 5);
+                              
+                              for (let i = 0; i < targetFiles.length; i++) {
+                                try {
+                                  const compressed = await compressAndResizeImage(targetFiles[i]);
+                                  loadedImages.push(compressed);
+                                } catch (err) {
+                                  console.error("Gagal mengompresi file:", err);
+                                }
+                              }
+                              
+                              if (loadedImages.length > 0) {
+                                setProdImages(loadedImages);
+                                setFeedback(`Berhasil mengompresi & memuat ${loadedImages.length} foto.`);
+                              } else {
+                                setFeedback("Gagal mengompresi gambar apapun.");
+                              }
                             }
                           }}
                         />
@@ -1242,6 +1387,20 @@ export default function DashboardSeller() {
                     </div>
                     <p className="text-[9px] text-gray-400 uppercase mt-1">Sistem akan secara instan merender file lokal Anda sebagai data Base64 aman yang tersimpan di server.</p>
                   </div>
+
+                  {/* Validation and Processing Notification/Error Box */}
+                  {productErrors.length > 0 && (
+                    <div className="bg-red-50 border-2 border-[#991b1b] p-3.5 text-[#991b1b] font-mono text-xs rounded animate-fade-in">
+                      <span className="font-sans font-bold text-red-950 block mb-1 uppercase tracking-tight">
+                        ⚠️ ALASAN GAGAL & KOLOM YANG HARUS DIPERBAIKI:
+                      </span>
+                      <ul className="list-disc pl-4 space-y-1">
+                        {productErrors.map((err, idx) => (
+                          <li key={idx} className="font-semibold">{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div className="flex gap-2">
                     <button
@@ -1774,6 +1933,177 @@ export default function DashboardSeller() {
                   SAVE STORE PROFILE SETTINGS
                 </button>
               </form>
+            </div>
+          )}
+
+          {activeTab === 'vouchers' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in" id="store-vouchers-pane">
+              {/* Form to create voucher */}
+              <div className="lg:col-span-5 bg-white border-2 border-black p-6 maternal-shadow font-mono text-xs">
+                <h2 className="font-serif text-xl font-bold mb-4 uppercase block tracking-tight">TERBITKAN VOUCHER BARU</h2>
+                
+                {vchFeedback && (
+                  <div className="mb-4 bg-green-50 border-2 border-green-600 text-green-900 p-3 font-bold text-xs uppercase">
+                    ✓ {vchFeedback}
+                  </div>
+                )}
+                {vchError && (
+                  <div className="mb-4 bg-red-50 border-2 border-red-600 text-red-900 p-3 font-bold text-xs uppercase">
+                    ⚠ {vchError}
+                  </div>
+                )}
+
+                <form onSubmit={handleCreateVoucher} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 uppercase">KODE VOUCHER *</label>
+                    <input 
+                      type="text"
+                      placeholder="CONTOH: TOKOSIPIL10"
+                      value={vchCode}
+                      onChange={(e) => setVchCode(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none uppercase"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase">Hanya berupa huruf dan angka, tanpa spasi.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1 uppercase">TIPE DISKON *</label>
+                      <select
+                        value={vchDiscountType}
+                        onChange={(e) => setVchDiscountType(e.target.value as 'NOMINAL' | 'PERCENTAGE')}
+                        className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none font-bold"
+                      >
+                        <option value="NOMINAL">Nominal (Rp)</option>
+                        <option value="PERCENTAGE">Persentase (%)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1 uppercase">NILAI DISKON *</label>
+                      <input 
+                        type="number"
+                        placeholder={vchDiscountType === 'NOMINAL' ? '25000' : '15'}
+                        value={vchAmount}
+                        onChange={(e) => setVchAmount(e.target.value)}
+                        required
+                        min="1"
+                        className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 uppercase">CAKUPAN VOUCHER *</label>
+                    <select
+                      value={vchScope}
+                      onChange={(e) => setVchScope(e.target.value as 'STORE' | 'PRODUCT')}
+                      className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none font-bold"
+                    >
+                      <option value="STORE">Seluruh Produk di Toko Ini</option>
+                      <option value="PRODUCT">Produk Tertentu Saja</option>
+                    </select>
+                  </div>
+
+                  {vchScope === 'PRODUCT' && (
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-1 uppercase">PILIH PRODUK *</label>
+                      <select
+                        value={vchProductId}
+                        onChange={(e) => setVchProductId(e.target.value)}
+                        required
+                        className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none text-xs font-bold"
+                      >
+                        <option value="">-- Pilih Produk --</option>
+                        {myStoreProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (Rp{p.price.toLocaleString('id-ID')})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1 uppercase">MINIMAL BELANJA (RP) *</label>
+                    <input 
+                      type="number"
+                      placeholder="0"
+                      value={vchMinPurchase}
+                      onChange={(e) => setVchMinPurchase(e.target.value)}
+                      required
+                      min="0"
+                      className="w-full bg-slate-50 border-2 border-black p-2.5 focus:outline-none font-bold"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase">Minimum nominal total belanja produk terkait sebelum diskon diaplikasikan.</p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-black hover:bg-neutral-800 text-white font-black border-2 border-black text-xs uppercase cursor-pointer tracking-wider"
+                  >
+                    TERBITKAN VOUCHER TOKO
+                  </button>
+                </form>
+              </div>
+
+              {/* List of existing vouchers */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-white border-2 border-black p-6 maternal-shadow">
+                  <h2 className="font-serif text-xl font-bold mb-4 uppercase text-black tracking-tight flex items-center justify-between">
+                    DAFTAR VOUCHER TOKO
+                    <span className="font-mono text-xs text-gray-500 font-normal">{myStoreVouchers.length} Terdaftar</span>
+                  </h2>
+
+                  {myStoreVouchers.length === 0 ? (
+                    <div className="text-center py-10 font-mono text-xs text-gray-500 border-2 border-dashed border-gray-300">
+                      Belum ada voucher aktif yang diterbitkan oleh toko Anda.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 font-mono text-xs">
+                      {myStoreVouchers.map((v) => {
+                        const targetProduct = v.productId ? products.find(p => p.id === v.productId) : null;
+                        return (
+                          <div key={v.id} className="border-2 border-black bg-[#fcfcf9] p-4 flex justify-between items-start maternal-shadow-sm">
+                            <div className="space-y-1.5 flex-1 min-w-0 pr-4">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="bg-black text-white px-2.5 py-0.5 text-xs font-black select-all rounded-sm tracking-wide">
+                                  {v.code}
+                                </span>
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 uppercase tracking-wide border rounded-sm ${v.productId ? 'border-amber-600 bg-amber-50 text-amber-800' : 'border-[#1e3a8a] bg-blue-50 text-blue-800'}`}>
+                                  {v.productId ? 'PRODUK TERTENTU' : 'SELURUH TOKO'}
+                                </span>
+                              </div>
+
+                              <p className="text-[#111] font-bold text-sm">
+                                Potongan {v.discountType === 'NOMINAL' ? `Rp${v.amount.toLocaleString('id-ID')}` : `${v.amount}%`}
+                              </p>
+
+                              <div className="text-[11px] text-gray-500 space-y-0.5 uppercase">
+                                <p>Minimal Belanja: <span className="text-[#111] font-bold">Rp{v.minPurchase.toLocaleString('id-ID')}</span></p>
+                                {v.productId && (
+                                  <p className="truncate">
+                                    Hanya Produk: <span className="text-red-800 font-bold">{targetProduct ? targetProduct.name : 'Produk tidak ditemukan'}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleDeleteVoucher(v.id)}
+                              className="text-red-600 hover:text-white hover:bg-red-600 transition border-2 border-red-600 p-1.5 font-bold uppercase rounded-sm flex items-center justify-center shrink-0 cursor-pointer"
+                              title="Hapus Voucher"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </>

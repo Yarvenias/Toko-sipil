@@ -8,8 +8,9 @@ import { useApp } from '../context/AppContext';
 import { Role } from '../types';
 import { 
   Search, Heart, ShoppingBag, User, LogOut, ShieldCheck, 
-  Store, MessageSquare, Menu, X, Terminal 
+  Store, MessageSquare, Menu, X, Terminal, Instagram 
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HeaderProps {
   onOpenCart: () => void;
@@ -20,7 +21,7 @@ interface HeaderProps {
 
 export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenChat }: HeaderProps) {
   const { 
-    currentUser, activePage, setActivePage, searchQuery, setSearchQuery, cart, wishlist, logout, stores 
+    currentUser, activePage, setActivePage, searchQuery, setSearchQuery, cart, wishlist, logout, stores, settings
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -53,9 +54,15 @@ export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenC
         <div className="flex items-center gap-8">
           <button 
             onClick={() => handleNavClick('home')}
-            className="font-serif text-3xl font-bold tracking-tighter cursor-pointer text-white hover:text-red-600 transition duration-300"
+            className="flex items-center gap-2.5 font-serif text-3xl font-bold tracking-tighter cursor-pointer text-white hover:text-red-600 transition duration-300 group"
           >
-            TOKO SIPIL
+            <img 
+              src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"} 
+              alt={settings?.appName || "Logo Toko Sipil"} 
+              className="w-8 h-8 rounded border border-gray-700 object-cover group-hover:scale-105 transition"
+              referrerPolicy="no-referrer"
+            />
+            <span>{String(settings?.appName || "TOKO SIPIL").toUpperCase()}</span>
           </button>
 
           {/* Nav links (Desktop) */}
@@ -90,6 +97,12 @@ export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenC
             >
               CONTACT
             </button>
+            <button 
+              onClick={() => handleNavClick('android-builder')}
+              className={`hover:text-[#f4f2e9] text-amber-400 font-bold tracking-wider transition ${activePage === 'android-builder' ? 'text-white font-bold underline decoration-red-600 underline-offset-4' : ''}`}
+            >
+              ANDROID APP 📱
+            </button>
             <a 
               href="https://hmts.useyapi.com/"
               target="_blank"
@@ -115,18 +128,43 @@ export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenC
 
         {/* Right Buttons: User panel, wishlist, bag, mobile toggle */}
         <div className="flex items-center gap-4.5">
+          {/* Instagram Link */}
+          <a
+            href="https://www.instagram.com/hmts_unikom/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1 text-gray-400 hover:text-[#e1306c] transition cursor-pointer flex items-center justify-center -mr-0.5"
+            title="Instagram HMTS Unikom"
+          >
+            <Instagram className="w-5 h-5 transition-colors duration-250" />
+          </a>
+
           {/* Wishlist */}
           <button 
             onClick={onOpenWishlist}
             className="relative p-1 text-gray-400 hover:text-white transition cursor-pointer"
             id="wishlist-trigger-btn"
           >
-            <Heart className="w-5 h-5" />
-            {wishlist.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-mono leading-none rounded-full w-4 h-4 flex items-center justify-center">
-                {wishlist.length}
-              </span>
-            )}
+            <Heart className="w-5 h-5 transition-colors duration-250" />
+            <AnimatePresence mode="popLayout">
+              {wishlist.length > 0 && (
+                <motion.span 
+                  key={wishlist.length}
+                  initial={{ scale: 0.3, opacity: 0 }}
+                  animate={{ scale: [1.35, 0.9, 1], opacity: 1 }}
+                  exit={{ scale: 0.3, opacity: 0 }}
+                  transition={{ 
+                    type: 'spring', 
+                    stiffness: 450, 
+                    damping: 14,
+                    duration: 0.25 
+                  }}
+                  className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[9px] font-mono font-bold leading-none rounded-full w-[17px] h-[17px] flex items-center justify-center border border-black shadow-[1px_1px_0px_rgba(0,0,0,1)] select-none pointer-events-none"
+                >
+                  {wishlist.length}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
 
           {/* Bag */}
@@ -281,6 +319,7 @@ export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenC
           <button onClick={() => handleNavClick('stores')} className="text-left py-1 hover:text-[#f4f2e9]">STORES</button>
           <button onClick={() => handleNavClick('about')} className="text-left py-1 hover:text-[#f4f2e9]">ABOUT</button>
           <button onClick={() => handleNavClick('contact')} className="text-left py-1 hover:text-[#f4f2e9]">CONTACT</button>
+          <button onClick={() => handleNavClick('android-builder')} className="text-left py-1 text-amber-400 font-bold hover:text-[#f4f2e9]">ANDROID APP 📱</button>
           <a 
             href="https://hmts.useyapi.com/" 
             target="_blank" 
@@ -288,6 +327,14 @@ export default function Header({ onOpenCart, onOpenWishlist, onOpenAuth, onOpenC
             className="text-left py-1 text-red-400 font-bold hover:text-red-300 flex items-center gap-1"
           >
             HMTS WEBSITE ↗
+          </a>
+          <a 
+            href="https://www.instagram.com/hmts_unikom/" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-left py-1 text-pink-500 font-bold hover:text-pink-400 flex items-center gap-1.5"
+          >
+            <Instagram className="w-4 h-4" /> INSTAGRAM @HMTS_UNIKOM ↗
           </a>
         </div>
       )}

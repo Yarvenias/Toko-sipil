@@ -16,6 +16,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
+import { compressAndResizeImage } from '../utils/imageCompressor';
 
 export default function DashboardAdmin() {
   const { currentUser, categories, products, banners, refreshAllData } = useApp();
@@ -65,6 +66,8 @@ export default function DashboardAdmin() {
   const [catIcon, setCatIcon] = useState('Shirt');
   const [commissionVal, setCommissionVal] = useState(5);
   const [adminWhatsappVal, setAdminWhatsappVal] = useState('628123456789');
+  const [appLogoVal, setAppLogoVal] = useState('');
+  const [appNameVal, setAppNameVal] = useState('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   // Banner states
@@ -91,6 +94,12 @@ export default function DashboardAdmin() {
         setCommissionVal(data.commissionPercent);
         if (data.adminWhatsapp) {
           setAdminWhatsappVal(data.adminWhatsapp);
+        }
+        if (data.appLogo) {
+          setAppLogoVal(data.appLogo);
+        }
+        if (data.appName) {
+          setAppNameVal(data.appName);
         }
       }
 
@@ -481,7 +490,7 @@ export default function DashboardAdmin() {
     } catch (e) {}
   };
 
-  // Adjust config platform commission & WhatsApp Admin
+  // Adjust config platform commission, WhatsApp, App Name & App Logo
   const handleSaveCommission = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -490,11 +499,13 @@ export default function DashboardAdmin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           commissionPercent: commissionVal,
-          adminWhatsapp: adminWhatsappVal
+          adminWhatsapp: adminWhatsappVal,
+          appLogo: appLogoVal,
+          appName: appNameVal
         })
       });
       if (res.ok) {
-        setActionFeedback("Konfigurasi komisi & nomor WhatsApp Admin berhasil disimpan!");
+        setActionFeedback("Konfigurasi platform (Komisi, WhatsApp, Nama, & Logo Resmi) berhasil disimpan!");
         await refreshAllData();
         setTimeout(() => setActionFeedback(null), 3000);
       }
@@ -1305,9 +1316,81 @@ export default function DashboardAdmin() {
               </span>
             </div>
 
+            <div>
+              <label className="block text-gray-400 font-bold mb-1 text-[11px] uppercase">NAMA APLIKASI (APP NAME) *</label>
+              <input 
+                type="text" 
+                value={appNameVal}
+                onChange={(e) => setAppNameVal(e.target.value)}
+                required
+                placeholder="Toko Sipil"
+                className="w-full bg-slate-50 border-2 border-black p-2.5 font-bold focus:outline-none text-xs text-black"
+              />
+              <span className="text-[10px] text-gray-400 mt-2 block leading-snug">
+                Nama utama aplikasi yang akan dirender di seluruh platform (Header, Footer, Dokumen, dll).
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-gray-400 font-bold mb-1 text-[11px] uppercase">LOGO RESMI APLIKASI (OFFICIAL BRAND LOGO) *</label>
+              
+              {/* Logo Preview */}
+              <div className="flex items-center gap-3 bg-slate-50 border-2 border-black p-3 mb-2">
+                <img 
+                  src={appLogoVal || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"} 
+                  alt="Official Logo Preview" 
+                  className="w-14 h-14 min-w-[56px] rounded border border-black object-cover bg-white"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="space-y-1 overflow-hidden">
+                  <span className="text-[9px] bg-black text-[#fcfbf7] px-1.5 py-0.5 font-bold uppercase inline-block">LIVE PREVIEW</span>
+                  <span className="text-[8px] text-gray-500 break-all leading-tight block select-all">
+                    {appLogoVal && appLogoVal.startsWith('data:') ? 'Format: Base64 Uploaded File' : `Path: ${appLogoVal || 'Default Asset'}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Upload controls */}
+              <div className="space-y-2 bg-slate-50 border-2 border-dashed border-gray-400 p-2.5">
+                <div>
+                  <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1">UPLOAD DARI FILES / SMARTPHONE :</span>
+                  <label className="cursor-pointer bg-black hover:bg-neutral-800 text-white border border-black px-3 py-1 text-[9px] font-extrabold uppercase tracking-widest inline-block transition text-center select-none">
+                    PILIH LOGO BARU...
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const compressed = await compressAndResizeImage(file, 400, 400, 0.85);
+                            setAppLogoVal(compressed);
+                          } catch (err: any) {
+                            console.error("Gagal memproses logo baru:", err);
+                          }
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <div className="relative">
+                  <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1">ATAU INPUT DIRECT URL GAMBAR :</span>
+                  <input 
+                    type="text" 
+                    value={appLogoVal}
+                    onChange={(e) => setAppLogoVal(e.target.value)}
+                    placeholder="https://example.com/logo.jpg"
+                    className="w-full bg-white border border-black p-2 font-mono text-[9px] text-black"
+                  />
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
-              className="w-full py-3 maternal-btn text-xs font-bold uppercase"
+              className="w-full py-3 maternal-btn text-xs font-bold uppercase mt-2"
               id="save-commission-btn"
             >
               SAVE PLATFORM CONFIGURATION
@@ -1847,14 +1930,15 @@ export default function DashboardAdmin() {
                           <input 
                             type="file" 
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setUserFormAvatar(reader.result as string);
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await compressAndResizeImage(file, 256, 256, 0.7);
+                                  setUserFormAvatar(compressed);
+                                } catch (err: any) {
+                                  console.error("Gagal memproses foto ava admin:", err);
+                                }
                               }
                             }}
                             className="hidden"
@@ -2098,14 +2182,15 @@ export default function DashboardAdmin() {
                       <input 
                         type="file" 
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setBannerImage(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressAndResizeImage(file, 1200, 600, 0.8);
+                              setBannerImage(compressed);
+                            } catch (err: any) {
+                              console.error("Gagal memproses banner admin:", err);
+                            }
                           }
                         }}
                         className="hidden"

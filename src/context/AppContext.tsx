@@ -3,8 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Store, Product, Category, Order, Chat, Banner, Settings, Role, Voucher } from '../types';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { User, Store, Product, Category, Order, Chat, Banner, Settings, Role, Voucher, OrderStatus } from '../types';
+
+export interface ToastMessage {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  createdAt: number;
+}
 
 interface CartItem {
   product: Product;
@@ -30,9 +38,14 @@ interface AppContextType {
   setSearchQuery: (query: string) => void;
   activeCategory: string;
   setActiveCategory: (catId: string) => void;
-  activePage: 'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order';
-  setActivePage: (p: 'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order') => void;
+  activePage: 'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order' | 'android-builder';
+  setActivePage: (p: 'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order' | 'android-builder') => void;
   refreshAllData: () => Promise<void>;
+  
+  // Toast Notifications
+  toasts: ToastMessage[];
+  addToast: (title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  removeToast: (id: string) => void;
   
   // Cart Actions
   addToCart: (product: Product, quantity: number, size: string, color: string) => void;
@@ -75,8 +88,152 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [followedStores, setFollowedStores] = useState<string[]>(['str_maternal']); // pre-follow Toko Sipil
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
-  const [activePage, setActivePage] = useState<'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order' | 'android-builder'>('home');
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+
+  // Toast States & Controls
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    const newToast: ToastMessage = {
+      id,
+      title,
+      message,
+      type,
+      createdAt: Date.now()
+    };
+    setToasts(prev => [...prev, newToast]);
+
+    // Automatically remove after 5 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Comparators for orders status change tracking
+  const prevOrdersRef = useRef<Order[]>([]);
+  const isFirstLoadRef = useRef<boolean>(true);
+
+  // Reset tracking on user switch
+  useEffect(() => {
+    isFirstLoadRef.current = true;
+    prevOrdersRef.current = [];
+  }, [currentUser]);
+
+  // Track order status changes
+  useEffect(() => {
+    if (orders.length === 0) {
+      return;
+    }
+
+    if (isFirstLoadRef.current) {
+      prevOrdersRef.current = orders;
+      isFirstLoadRef.current = false;
+      return;
+    }
+
+    orders.forEach((newOrder) => {
+      const oldOrder = prevOrdersRef.current.find(o => o.id === newOrder.id);
+      
+      // If order exists and status has changed
+      if (oldOrder && oldOrder.status !== newOrder.status) {
+        let title = 'Pembaruan Status Pesanan';
+        let message = `Pesanan #${newOrder.id.slice(0, 8)} dari store ${newOrder.storeName} kini berstatus: ${newOrder.status}`;
+        let type: 'info' | 'success' | 'warning' | 'error' = 'info';
+
+        switch (newOrder.status) {
+          case OrderStatus.PENDING:
+            title = 'Pesanan Dibuat';
+            message = `Selesaikan pembayaran pesanan Anda di ${newOrder.storeName} sebesar Rp${newOrder.totalAmount.toLocaleString('id-ID')}.`;
+            type = 'info';
+            break;
+          case OrderStatus.DP_PAID:
+            title = 'DP Berhasil Dibayar 💳';
+            message = `Uang muka untuk produk pre-order Anda di ${newOrder.storeName} telah sukses diverifikasi!`;
+            type = 'success';
+            break;
+          case OrderStatus.PAID:
+            title = 'Pembayaran Diterima ✓';
+            message = `Pembayaran untuk pesanan di ${newOrder.storeName} sukses diverifikasi. Penjual akan segera memproses barang Anda!`;
+            type = 'success';
+            break;
+          case OrderStatus.SHIPPED:
+            title = 'Pesanan Dikirim 🚚';
+            message = `Kabar gembira! Paket pesanan dari ${newOrder.storeName} sedang meluncur. ${newOrder.resiNo ? `Resi: ${newOrder.resiNo}` : ''}`;
+            type = 'success';
+            break;
+          case OrderStatus.DELIVERED:
+            title = 'Pesanan Tiba di Tujuan 🏠';
+            message = `Paket dari ${newOrder.storeName} telah diserahkan kurir ke almat penerima. Silakan periksa paket Anda.`;
+            type = 'success';
+            break;
+          case OrderStatus.COMPLETED:
+            title = 'Pesanan Selesai 🎉';
+            message = `Transaksi selesai! Dana pesanan telah dicairkan ke dompet penjual ${newOrder.storeName}. Terima kasih telah berbelanja!`;
+            type = 'info';
+            break;
+          case OrderStatus.CANCELLED:
+            title = 'Pesanan Dibatalkan ✕';
+            message = `Pesanan di ${newOrder.storeName} telah dibatalkan.`;
+            type = 'error';
+            break;
+          case OrderStatus.FAILED:
+            title = 'Pembayaran Gagal';
+            message = `Transaksi pesanan di ${newOrder.storeName} gagal diselesaikan oleh sistem payment gateway.`;
+            type = 'error';
+            break;
+        }
+
+        // Trigger a beautiful notification
+        addToast(title, message, type);
+      }
+    });
+
+    // Update snapshot
+    prevOrdersRef.current = orders;
+  }, [orders]);
+
+  // Real-time Order status polling every 7 seconds
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const timer = setInterval(() => {
+      // Fetch fresh order updates
+      let storeIdQuery = '';
+      if (currentUser.role === Role.SELLER) {
+        fetch(`/api/stores`)
+          .then(r => r.json() as Promise<Store[]>)
+          .then(list => list.find(s => s.userId === currentUser.id))
+          .then(currentStore => {
+            const storeIdQuery = currentStore ? `&storeId=${currentStore.id}` : '';
+            return fetch(`/api/orders?buyerId=${currentUser.id}${storeIdQuery}&role=${currentUser.role}`);
+          })
+          .then(res => {
+            if (res.ok) return res.json();
+          })
+          .then(data => {
+            if (data) setOrders(data);
+          })
+          .catch(err => console.error('Error polling orders:', err));
+      } else {
+        fetch(`/api/orders?buyerId=${currentUser.id}&role=${currentUser.role}`)
+          .then(res => {
+            if (res.ok) return res.json();
+          })
+          .then(data => {
+            if (data) setOrders(data);
+          })
+          .catch(err => console.error('Error polling orders:', err));
+      }
+    }, 7000);
+
+    return () => clearInterval(timer);
+  }, [currentUser]);
 
   const refreshAllData = async () => {
     try {
@@ -138,6 +295,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Monitor session validity to enforce "1 account 1 device" in real-time
+  useEffect(() => {
+    if (!currentUser || currentUser.isGuest) return;
+
+    let isChecking = false;
+
+    const verifySession = async () => {
+      if (isChecking) return;
+      isChecking = true;
+      try {
+        const res = await fetch('/api/auth/verify-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            sessionToken: currentUser.sessionToken || ''
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.valid === false) {
+            console.warn('[Session Security] Real-time check failed: session logged in on other device.');
+            localStorage.removeItem('maternal_user');
+            setCurrentUser(null);
+            clearCart();
+            setActivePage('home');
+            addToast(
+              "SESI BERAKHIR",
+              "Akun Anda telah masuk di perangkat lain. Sesi di perangkat ini kedaluwarsa secara otomatis.",
+              "error"
+            );
+          }
+        }
+      } catch (e) {
+        console.error('[Session Security] Error checking session status:', e);
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    // Run diagnostic check immediately when focus / session state updates
+    verifySession();
+
+    // Check periodically every 15 seconds to catch active multi-device overlays
+    const interval = setInterval(verifySession, 15000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
   const handleSetCurrentUser = (user: User | null) => {
     if (user) {
       setCurrentUser(user);
@@ -173,13 +378,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       mutable.push({ product, quantity, selectedSize: size, selectedColor: color });
     }
     handleSetCart(mutable);
+    addToast("KERANJANG BELANJA", `Berhasil menambah ${quantity}x ${product.name} (${size})`, "success");
   };
 
   const removeFromCart = (productId: string, size: string, color: string) => {
+    const targetItem = cart.find(item => item.product.id === productId && item.selectedSize === size && item.selectedColor === color);
+    const label = targetItem ? targetItem.product.name : "Item";
     const filt = cart.filter(item => 
       !(item.product.id === productId && item.selectedSize === size && item.selectedColor === color)
     );
     handleSetCart(filt);
+    addToast("DELETED FROM CART", `Menghapus "${label}" dari keranjang.`, "info");
   };
 
   const updateCartQty = (productId: string, size: string, color: string, qty: number) => {
@@ -190,6 +399,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return item;
     });
     handleSetCart(mutable);
+    addToast("QTY UPDATED", "Jumlah pesanan berhasil diperbarui.", "info");
   };
 
   const clearCart = () => {
@@ -202,22 +412,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const vch = vouchers.find(v => v.code === normalized && v.active);
     if (!vch) return "Kode voucher tidak berlaku atau telah kedaluwarsa.";
 
-    // calculate total cart size
-    const subtotal = cart.reduce((sum, item) => {
-      const discountedItemPrice = item.product.price * (1 - item.product.discount / 100);
-      return sum + (discountedItemPrice * item.quantity);
-    }, 0);
+    if (vch.productId) {
+      const productItems = cart.filter(item => item.product.id === vch.productId);
+      if (productItems.length === 0) {
+        const targetProd = products.find(p => p.id === vch.productId);
+        const prodName = targetProd ? targetProd.name : "produk terkait";
+        return `Voucher ini hanya berlaku untuk pembelian produk "${prodName}".`;
+      }
+      const productSubtotal = productItems.reduce((sum, item) => {
+        const discountedItemPrice = item.product.price * (1 - item.product.discount / 100);
+        return sum + (discountedItemPrice * item.quantity);
+      }, 0);
+      if (productSubtotal < vch.minPurchase) {
+        return `Minimal pembelian produk ini untuk menggunakan voucher adalah Rp${vch.minPurchase.toLocaleString('id-ID')}.`;
+      }
+    } else if (vch.storeId) {
+      const storeItems = cart.filter(item => item.product.storeId === vch.storeId);
+      if (storeItems.length === 0) {
+        return `Voucher ini hanya berlaku untuk produk dari toko yang bersangkutan.`;
+      }
+      const storeSubtotal = storeItems.reduce((sum, item) => {
+        const discountedItemPrice = item.product.price * (1 - item.product.discount / 100);
+        return sum + (discountedItemPrice * item.quantity);
+      }, 0);
+      if (storeSubtotal < vch.minPurchase) {
+        return `Minimal pembelian dari toko ini untuk memakai voucher adalah Rp${vch.minPurchase.toLocaleString('id-ID')}.`;
+      }
+    } else {
+      const subtotal = cart.reduce((sum, item) => {
+        const discountedItemPrice = item.product.price * (1 - item.product.discount / 100);
+        return sum + (discountedItemPrice * item.quantity);
+      }, 0);
 
-    if (subtotal < vch.minPurchase) {
-      return `Minimal pembelian untuk menggunakan voucher ini adalah Rp${vch.minPurchase.toLocaleString('id-ID')}.`;
+      if (subtotal < vch.minPurchase) {
+        return `Minimal pembelian untuk menggunakan voucher ini adalah Rp${vch.minPurchase.toLocaleString('id-ID')}.`;
+      }
     }
 
     setAppliedVoucher(vch);
+    addToast("PROMO TERPASANG", `Voucher diskon ${vch.discountPercent}% berhasil digunakan!`, "success");
     return null; // success
   };
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
+    addToast("PROMO DILEPAS", "Voucher belanja telah dilepaskan.", "info");
   };
 
   const toggleWishlist = (productId: string) => {
@@ -225,15 +464,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAuthOpen(true);
       return;
     }
+    const prod = products.find(p => p.id === productId);
+    const label = prod ? prod.name : "Produk";
     if (wishlist.includes(productId)) {
       setWishlist(wishlist.filter(id => id !== productId));
+      addToast("WISHLIST UPDATED", `"${label}" dihapus dari daftar favorit Anda.`, "info");
     } else {
       setWishlist([...wishlist, productId]);
+      addToast("WISHLIST UPDATED", `"${label}" ditambahkan ke daftar favorit!`, "success");
     }
   };
 
   const toggleFollowStore = async (storeId: string): Promise<boolean> => {
     if (!currentUser) return false;
+    const targetStore = stores.find(s => s.id === storeId);
+    const storeName = targetStore ? targetStore.name : "Toko";
     try {
       const res = await fetch('/api/stores/follow', {
         method: 'POST',
@@ -244,8 +489,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         if (data.followed) {
           setFollowedStores([...followedStores, storeId]);
+          addToast("TOKO DIIKUTI", `Anda sekarang mengikuti store "${storeName}"!`, "success");
         } else {
           setFollowedStores(followedStores.filter(id => id !== storeId));
+          addToast("BATAL IKUTI", `Berhenti mengikuti store "${storeName}".`, "info");
         }
         await refreshAllData();
         return data.followed;
@@ -269,6 +516,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       handleSetCurrentUser(data.user);
       await refreshAllData();
+      addToast("LOGIN STATUS", `Selamat datang kembali, ${data.user.name}!`, "success");
       return null;
     } catch (e) {
       console.error(e);
@@ -287,6 +535,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         return data.error || 'Terjadi kesalahan saat registrasi.';
       }
+      addToast("SIGNUP STATUS", `Registrasi berhasil! Silakan masuk dengan email Anda.`, "success");
       return null;
     } catch (e) {
       console.error(e);
@@ -295,10 +544,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    const userLabel = currentUser ? currentUser.name : "Pengguna";
     localStorage.removeItem('maternal_user');
     setCurrentUser(null);
     clearCart();
     setActivePage('home');
+    addToast("LOGOUT STATUS", `Sampai jumpa lagi, ${userLabel}!`, "info");
   };
 
   return (
@@ -322,6 +573,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activePage,
       setActivePage,
       refreshAllData,
+      toasts,
+      addToast,
+      removeToast,
       addToCart,
       removeFromCart,
       updateCartQty,

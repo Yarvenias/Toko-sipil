@@ -1,6 +1,6 @@
 {
-  "name": "Multi-Vendor Fashion Marketplace",
-  "description": "Platform marketplace fashion premium multi-vendor dengan sistem multi-role, wallet seller, integrasi pembayaran Midtrans, ongkir otomatis, and approval toko.",
+  "name": "Toko Sipil",
+  "description": "Platform marketplace teknik sipil premium multi-vendor dengan sistem multi-role, wallet seller, integrasi pembayaran Midtrans, ongkir otomatis, dan approval toko.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
