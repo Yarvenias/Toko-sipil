@@ -368,7 +368,7 @@ async function startServer() {
       return res.status(403).json({ error: 'Akses ditolak. Hanya Admin/Pegawai Toko Sipil yang diizinkan mengunggah file APK.' });
     }
 
-    upload.single('apkFile')(req, res, (err) => {
+    upload.single('apkFile')(req, res, async (err) => {
       if (err) {
         console.error('Error uploading APK:', err);
         return res.status(500).json({ error: 'Gagal mengunggah file APK: ' + err.message });
@@ -410,7 +410,7 @@ async function startServer() {
           lastUploadedSize: req.file.size,
           lastUploadedAt: new Date().toISOString()
         };
-        saveDb(db);
+        await saveDb(db);
         console.log('✓ Recorded upload metadata in db.json successfully.');
       } catch (dbErr) {
         console.error('Failure updating DB metadata:', dbErr);
@@ -425,7 +425,7 @@ async function startServer() {
   });
 
   // Save/Update Android Config Settings Endpoint (Admin Only)
-  app.post('/api/admin/android-config', (req, res) => {
+  app.post('/api/admin/android-config', async (req, res) => {
     const userId = req.headers['x-user-id'] || req.query.userId;
     if (!userId) {
       return res.status(401).json({ error: 'Sesi login tidak valid atau kedaluwarsa. Silakan masuk terlebih dahulu.' });
@@ -463,7 +463,7 @@ async function startServer() {
       lastUploadedAt: db.androidConfig?.lastUploadedAt
     };
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Konfigurasi biner Android berhasil diperbarui ke database!', config: db.androidConfig });
   });
 
@@ -767,7 +767,7 @@ async function startServer() {
   });
 
   // Store Application Flow
-  app.post('/api/stores/apply', (req, res) => {
+  app.post('/api/stores/apply', async (req, res) => {
     const { userId, name, username, ownerName, phone, email, address, nik, ktpPhoto, logo, bankName, bankAccount, bankAccountName } = req.body;
     if (!userId || !name || !username || !ownerName || !phone || !email || !address || !nik || !ktpPhoto || !logo || !bankName || !bankAccount || !bankAccountName) {
       return res.status(400).json({ error: 'Semua kolom pendaftaran toko wajib diisi.' });
@@ -804,12 +804,12 @@ async function startServer() {
     };
 
     db.storeApplications.push(newApp);
-    saveDb(db);
+    await saveDb(db);
 
     res.status(201).json({ message: 'Pendaftaran toko berhasil diajukan.', application: newApp });
   });
 
-  app.post('/api/stores/applications/:id/approve', (req, res) => {
+  app.post('/api/stores/applications/:id/approve', async (req, res) => {
     const db = loadDb();
     const application = db.storeApplications.find(app => app.id === req.params.id);
     if (!application) {
@@ -874,11 +874,11 @@ async function startServer() {
       });
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Toko berhasil disetujui! User sekarang ber-role Seller.', store: newStore });
   });
 
-  app.post('/api/stores/applications/:id/reject', (req, res) => {
+  app.post('/api/stores/applications/:id/reject', async (req, res) => {
     const db = loadDb();
     const application = db.storeApplications.find(app => app.id === req.params.id);
     if (!application) {
@@ -886,12 +886,12 @@ async function startServer() {
     }
 
     application.status = ApplicationStatus.REJECTED;
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Pendaftaran toko telah ditolak.' });
   });
 
   // Store following toggle
-  app.post('/api/stores/follow', (req, res) => {
+  app.post('/api/stores/follow', async (req, res) => {
     const { userId, storeId } = req.body;
     if (!userId || !storeId) {
       return res.status(400).json({ error: 'Missing parameters' });
@@ -912,7 +912,7 @@ async function startServer() {
       store.followersCount = db.follows.filter(f => f.storeId === storeId).length + 1240; // baseline of seeded
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ followed, followersCount: store ? store.followersCount : 0 });
   });
 
@@ -924,7 +924,7 @@ async function startServer() {
     res.json(cleanUsers);
   });
 
-  app.post('/api/users', (req, res) => {
+  app.post('/api/users', async (req, res) => {
     const { name, email, role, angkatan, campus, password } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nama, Email, dan Password wajib diisi.' });
@@ -944,11 +944,11 @@ async function startServer() {
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(name)}`
     };
     db.users.push(newUser);
-    saveDb(db);
+    await saveDb(db);
     res.status(201).json({ message: 'User berhasil dibuat.', user: { ...newUser, password: undefined } });
   });
 
-  app.post('/api/users/:id/role', (req, res) => {
+  app.post('/api/users/:id/role', async (req, res) => {
     const { role } = req.body;
     const db = loadDb();
     const user = db.users.find(u => u.id === req.params.id);
@@ -956,11 +956,11 @@ async function startServer() {
       return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
     user.role = role as Role;
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Role user berhasil diubah.', user });
   });
 
-  app.put('/api/users/:id', (req, res) => {
+  app.put('/api/users/:id', async (req, res) => {
     const { name, email, role, angkatan, campus, password, avatar, phone } = req.body;
     const db = loadDb();
     const user = db.users.find(u => u.id === req.params.id);
@@ -976,11 +976,11 @@ async function startServer() {
     if (avatar !== undefined) user.avatar = avatar;
     if (phone !== undefined) user.phone = phone;
     
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Detail user berhasil diperbaharui.', user });
   });
 
-  app.delete('/api/users/:id', (req, res) => {
+  app.delete('/api/users/:id', async (req, res) => {
     const db = loadDb();
     const index = db.users.findIndex(u => u.id === req.params.id);
     if (index === -1) {
@@ -990,7 +990,7 @@ async function startServer() {
     // Prevent self-deletion if logged user deletes themselves (optionally, checked in client/server)
     const deletedUser = db.users[index];
     db.users.splice(index, 1);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: `User "${deletedUser.name}" berhasil dihapus dari sistem.` });
   });
 
@@ -1000,7 +1000,7 @@ async function startServer() {
     res.json(db.categories);
   });
 
-  app.post('/api/categories', (req, res) => {
+  app.post('/api/categories', async (req, res) => {
     const { name, icon } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Nama kategori wajib diisi.' });
@@ -1014,7 +1014,7 @@ async function startServer() {
       icon: icon || 'Sparkles'
     };
     db.categories.push(newCategory);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Kategori berhasil ditambahkan', category: newCategory });
   });
 
@@ -1060,7 +1060,7 @@ async function startServer() {
     res.json({ product, reviews });
   });
 
-  app.post('/api/products', (req, res) => {
+  app.post('/api/products', async (req, res) => {
     const { storeId, name, sku, description, price, discount, weight, stock, categoryId, sizes, colors, images, isPreOrder, preOrderDpPercent } = req.body;
     if (!storeId || !name || !sku || !price || !categoryId || !images || images.length < 1) {
       return res.status(400).json({ error: 'Silakan isi parameter wajib produk dan berikan minimal 1 foto.' });
@@ -1100,11 +1100,11 @@ async function startServer() {
     };
 
     db.products.push(newProd);
-    saveDb(db);
+    await saveDb(db);
     res.status(201).json({ message: 'Produk berhasil diupload!', product: newProd });
   });
 
-  app.put('/api/products/:id', (req, res) => {
+  app.put('/api/products/:id', async (req, res) => {
     const db = loadDb();
     const product = db.products.find(p => p.id === req.params.id);
     if (!product) {
@@ -1126,22 +1126,22 @@ async function startServer() {
     if (isPreOrder !== undefined) product.isPreOrder = isPreOrder === true || isPreOrder === 'true';
     if (preOrderDpPercent !== undefined) product.preOrderDpPercent = Number(preOrderDpPercent);
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Produk berhasil diperbarui.', product });
   });
 
-  app.delete('/api/products/:id', (req, res) => {
+  app.delete('/api/products/:id', async (req, res) => {
     const db = loadDb();
     const idx = db.products.findIndex(p => p.id === req.params.id);
     if (idx === -1) {
       return res.status(404).json({ error: 'Produk tidak ditemukan.' });
     }
     db.products.splice(idx, 1);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Produk berhasil dihapus.' });
   });
 
-  app.post('/api/products/:id/approve', (req, res) => {
+  app.post('/api/products/:id/approve', async (req, res) => {
     const db = loadDb();
     const product = db.products.find(p => p.id === req.params.id);
     if (!product) {
@@ -1149,11 +1149,11 @@ async function startServer() {
     }
     product.isApproved = true;
     product.approvalStatus = 'APPROVED';
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Produk berhasil disetujui untuk ditampilkan di etalase.', product });
   });
 
-  app.post('/api/products/:id/reject', (req, res) => {
+  app.post('/api/products/:id/reject', async (req, res) => {
     const db = loadDb();
     const product = db.products.find(p => p.id === req.params.id);
     if (!product) {
@@ -1161,7 +1161,7 @@ async function startServer() {
     }
     product.isApproved = false;
     product.approvalStatus = 'REJECTED';
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Produk berhasil ditolak.', product });
   });
 
@@ -1636,13 +1636,13 @@ async function startServer() {
     };
 
     db.orders.push(newOrder);
-    saveDb(db);
+    await saveDb(db);
 
     res.status(201).json({ message: 'Order created successfully.', order: newOrder });
   });
 
   // Handle direct Midtrans webhook status updates
-  const handleMidtransWebhook = (req: express.Request, res: express.Response) => {
+  const handleMidtransWebhook = async (req: express.Request, res: express.Response) => {
     // Enable CORS for webhook callers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -1770,7 +1770,7 @@ async function startServer() {
 
         wallet.heldBalance += netEarning;
         wallet.totalEarnings += netEarning;
-        saveDb(db);
+        await saveDb(db);
         console.log(`[Midtrans Webhook] Order ${order.id} was successfully marked as ${targetStatus}. Net earning addition: Rp${netEarning}`);
       }
     } else if (transaction_status === 'cancel' || transaction_status === 'deny' || transaction_status === 'expire') {
@@ -1785,7 +1785,7 @@ async function startServer() {
             prod.stock += item.quantity;
           }
         }
-        saveDb(db);
+        await saveDb(db);
         console.log(`[Midtrans Webhook] Order ${order_id} was marked as CANCELLED`);
       }
     }
@@ -1815,7 +1815,7 @@ async function startServer() {
   app.post('/api/webhook/midtrans', handleMidtransWebhook);
 
   // Helper to expire pending orders older than 24 hours and restock products
-  function processPendingOrderExpirations(db: any) {
+  async function processPendingOrderExpirations(db: any) {
     let changed = false;
     const now = new Date().getTime();
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -1841,7 +1841,7 @@ async function startServer() {
       });
     }
     if (changed) {
-      saveDb(db);
+      await saveDb(db);
     }
   }
 
@@ -1913,7 +1913,7 @@ async function startServer() {
           if (binderStatus === 'DELIVERED' && order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.COMPLETED) {
             order.status = OrderStatus.DELIVERED;
             order.updatedAt = new Date().toISOString();
-            saveDb(db);
+            await saveDb(db);
           }
         } else {
           console.warn(`[Binderbyte] API returned non-200 or failure:`, result);
@@ -1980,7 +1980,7 @@ async function startServer() {
           if (order.status === OrderStatus.SHIPPED) {
             order.status = OrderStatus.DELIVERED;
             order.updatedAt = new Date().toISOString();
-            saveDb(db);
+            await saveDb(db);
           }
 
           historyList.push({
@@ -2143,7 +2143,7 @@ async function startServer() {
           order.snapRedirectUrl = midtransData.redirect_url;
           order.usedRealMidtrans = true;
           console.log(`[Midtrans] Generated pelunasan snap token for ${pelunasanOrderId}: ${order.snapToken}`);
-          saveDb(db);
+          await saveDb(db);
         } else {
           const errText = await midtransRes.text();
           console.error('[Midtrans] Midtrans rejected pelunasan parameters:', errText);
@@ -2157,14 +2157,14 @@ async function startServer() {
       order.usedRealMidtrans = false;
       if (order.snapToken) delete order.snapToken;
       if (order.snapRedirectUrl) delete order.snapRedirectUrl;
-      saveDb(db);
+      await saveDb(db);
     }
 
     res.json(order);
   });
 
   // Midtrans Payment Simulation
-  app.post('/api/orders/:id/pay', (req, res) => {
+  app.post('/api/orders/:id/pay', async (req, res) => {
     const db = loadDb();
     processPendingOrderExpirations(db);
     const order = db.orders.find(o => o.id === req.params.id);
@@ -2242,12 +2242,12 @@ async function startServer() {
     wallet.heldBalance += netEarning;
     wallet.totalEarnings += netEarning;
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: statusMessage, order });
   });
 
   // Shipping process
-  app.post('/api/orders/:id/ship', (req, res) => {
+  app.post('/api/orders/:id/ship', async (req, res) => {
     const { resiNo } = req.body;
     if (!resiNo) {
       return res.status(400).json({ error: 'Nomor Resi wajib diisi.' });
@@ -2263,11 +2263,11 @@ async function startServer() {
     order.resiNo = resiNo;
     order.updatedAt = new Date().toISOString();
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Pesanan berhasil dikirim.', order });
   });
 
-  app.post('/api/orders/:id/deliver', (req, res) => {
+  app.post('/api/orders/:id/deliver', async (req, res) => {
     const db = loadDb();
     const order = db.orders.find(o => o.id === req.params.id);
     if (!order) {
@@ -2277,12 +2277,12 @@ async function startServer() {
     order.status = OrderStatus.DELIVERED;
     order.updatedAt = new Date().toISOString();
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Kurir sukses mengirim paket ke alamat.', order });
   });
 
   // Complete Order & Wallet Credit releases
-  app.post('/api/orders/:id/complete', (req, res) => {
+  app.post('/api/orders/:id/complete', async (req, res) => {
     const db = loadDb();
     const order = db.orders.find(o => o.id === req.params.id);
     if (!order) {
@@ -2317,12 +2317,12 @@ async function startServer() {
       });
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Pesanan selesai. Dana saldo penjual telah dicairkan ke dompet.', order });
   });
 
   // Client cancellation
-  app.post('/api/orders/:id/cancel', (req, res) => {
+  app.post('/api/orders/:id/cancel', async (req, res) => {
     const { reason } = req.body;
     if (!reason || !reason.trim()) {
       return res.status(400).json({ error: 'Alasan pembatalan wajib disediakan.' });
@@ -2350,12 +2350,12 @@ async function startServer() {
       }
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Pesanan berhasil dibatalkan.', order });
   });
 
   // Reviews product
-  app.post('/api/orders/:id/review', (req, res) => {
+  app.post('/api/orders/:id/review', async (req, res) => {
     const { productId, buyerId, buyerName, rating, text, image } = req.body;
     if (!productId || !buyerId || !rating || !text) {
       return res.status(400).json({ error: 'Data ulasan tidak lengkap.' });
@@ -2393,12 +2393,12 @@ async function startServer() {
       }
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.status(201).json({ message: 'Terima kasih atas ulasan ulasan bintang ' + rating + ' Anda!', review: newReview });
   });
 
   // Wallets statistics & bank controls
-  app.get('/api/wallets/:storeId', (req, res) => {
+  app.get('/api/wallets/:storeId', async (req, res) => {
     const db = loadDb();
     let wallet = db.wallets.find(w => w.storeId === req.params.storeId);
     if (!wallet) {
@@ -2410,7 +2410,7 @@ async function startServer() {
         totalWithdrawn: 0
       };
       db.wallets.push(wallet);
-      saveDb(db);
+      await saveDb(db);
     }
     res.json(wallet);
   });
@@ -2429,7 +2429,7 @@ async function startServer() {
     res.json(bank || null);
   });
 
-  app.post('/api/bank-account', (req, res) => {
+  app.post('/api/bank-account', async (req, res) => {
     const { sellerId, bankName, accountNumber, accountHolder, proofPhoto, nik, ktpPhoto } = req.body;
     if (!sellerId || !bankName || !accountNumber || !accountHolder || !proofPhoto || !nik || !ktpPhoto) {
       return res.status(400).json({ error: 'Seluruh form data rekening wajib diisi.' });
@@ -2446,7 +2446,7 @@ async function startServer() {
       existing.ktpPhoto = ktpPhoto;
       existing.status = BankVerificationStatus.PENDING;
       existing.createdAt = new Date().toISOString();
-      saveDb(db);
+      await saveDb(db);
       return res.json({ message: 'Data rekening diperbarui, silakan tunggu verifikasi pegurus.', bankAccount: existing });
     }
 
@@ -2464,7 +2464,7 @@ async function startServer() {
     };
 
     db.bankAccounts.push(newBank);
-    saveDb(db);
+    await saveDb(db);
     res.status(201).json({ message: 'Rekening diajukan, menunggu verifikasi pengurus.', bankAccount: newBank });
   });
 
@@ -2473,30 +2473,30 @@ async function startServer() {
     res.json(db.bankAccounts);
   });
 
-  app.post('/api/admin/bank-accounts/:id/approve', (req, res) => {
+  app.post('/api/admin/bank-accounts/:id/approve', async (req, res) => {
     const db = loadDb();
     const bk = db.bankAccounts.find(x => x.id === req.params.id);
     if (!bk) {
       return res.status(404).json({ error: 'Data Rekening tidak ditemukan.' });
     }
     bk.status = BankVerificationStatus.APPROVED;
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Rekening seller berhasil disetujui.', bankAccount: bk });
   });
 
-  app.post('/api/admin/bank-accounts/:id/reject', (req, res) => {
+  app.post('/api/admin/bank-accounts/:id/reject', async (req, res) => {
     const db = loadDb();
     const bk = db.bankAccounts.find(x => x.id === req.params.id);
     if (!bk) {
       return res.status(404).json({ error: 'Data Rekening tidak ditemukan.' });
     }
     bk.status = BankVerificationStatus.REJECTED;
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Rekening seller ditolak.', bankAccount: bk });
   });
 
   // Withdrawals
-  app.post('/api/withdrawals', (req, res) => {
+  app.post('/api/withdrawals', async (req, res) => {
     const { sellerId, amount, bankName, accountNumber, accountHolder } = req.body;
     if (!sellerId || !amount || amount < 50000) {
       return res.status(400).json({ error: 'Form penarikan wajib diisi, minimal Rp50.000.' });
@@ -2548,7 +2548,7 @@ async function startServer() {
       createdAt: new Date().toISOString()
     });
 
-    saveDb(db);
+    await saveDb(db);
     res.status(201).json({ message: 'Pencairan diajukan, menunggu approval tim admin.', withdrawal: newWd });
   });
 
@@ -2564,7 +2564,7 @@ async function startServer() {
     res.json(list);
   });
 
-  app.post('/api/withdrawals/:id/approve', (req, res) => {
+  app.post('/api/withdrawals/:id/approve', async (req, res) => {
     const db = loadDb();
     const wd = db.withdrawals.find(w => w.id === req.params.id);
     if (!wd) {
@@ -2583,11 +2583,11 @@ async function startServer() {
       }
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Penarikan berhasil disetujui dan dana dicairkan.', withdrawal: wd });
   });
 
-  app.post('/api/withdrawals/:id/reject', (req, res) => {
+  app.post('/api/withdrawals/:id/reject', async (req, res) => {
     const db = loadDb();
     const wd = db.withdrawals.find(w => w.id === req.params.id);
     if (!wd) {
@@ -2616,7 +2616,7 @@ async function startServer() {
       });
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Penarikan dana ditolak dan saldo dikembalikan ke seller.', withdrawal: wd });
   });
 
@@ -2642,7 +2642,7 @@ async function startServer() {
     res.json(list);
   });
 
-  app.post('/api/chats/new', (req, res) => {
+  app.post('/api/chats/new', async (req, res) => {
     const { buyerId, storeId } = req.body;
     if (!buyerId || !storeId) {
       return res.status(400).json({ error: 'Parameter kurang' });
@@ -2664,7 +2664,7 @@ async function startServer() {
         updatedAt: new Date().toISOString()
       };
       db.chats.push(chat);
-      saveDb(db);
+      await saveDb(db);
     }
     res.json(chat);
   });
@@ -2675,7 +2675,7 @@ async function startServer() {
     res.json(messages);
   });
 
-  app.post('/api/chats/:chatId/messages', (req, res) => {
+  app.post('/api/chats/:chatId/messages', async (req, res) => {
     const { senderId, text, image } = req.body;
     if (!senderId || (!text && !image)) {
       return res.status(400).json({ error: 'Pesan kosong.' });
@@ -2700,7 +2700,7 @@ async function startServer() {
     chat.lastMessage = text || '[Gambar]';
     chat.updatedAt = new Date().toISOString();
 
-    saveDb(db);
+    await saveDb(db);
     res.json(msg);
   });
 
@@ -2715,7 +2715,7 @@ async function startServer() {
     res.json(list);
   });
 
-  app.post('/api/vouchers', (req, res) => {
+  app.post('/api/vouchers', async (req, res) => {
     const { code, type, discountType, amount, minPurchase, storeId, productId } = req.body;
     if (!code || !amount) {
       return res.status(400).json({ error: 'Kode voucher dan nominal wajib diisi.' });
@@ -2735,11 +2735,11 @@ async function startServer() {
     };
 
     db.vouchers.push(newVoucher);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Voucher berhasil diterbitkan.', voucher: newVoucher });
   });
 
-  app.delete('/api/vouchers/:id', (req, res) => {
+  app.delete('/api/vouchers/:id', async (req, res) => {
     const { id } = req.params;
     const db = loadDb();
     const idx = db.vouchers.findIndex(v => v.id === id);
@@ -2747,11 +2747,11 @@ async function startServer() {
       return res.status(404).json({ error: 'Voucher tidak ditemukan.' });
     }
     db.vouchers.splice(idx, 1);
-    saveDb(db);
+    await saveDb(db);
     res.json({ success: true, message: 'Voucher berhasil dihapus.' });
   });
 
-  app.post('/api/auth/reset-password', (req, res) => {
+  app.post('/api/auth/reset-password', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email dan password baru wajib diisi.' });
@@ -2762,7 +2762,7 @@ async function startServer() {
       return res.status(404).json({ error: 'Email tidak ditemukan.' });
     }
     user.password = password;
-    saveDb(db);
+    await saveDb(db);
     res.json({ success: true, message: 'Password Anda berhasil diubah.' });
   });
 
@@ -2879,7 +2879,7 @@ async function startServer() {
     res.json(db.banners);
   });
 
-  app.post('/api/banners', (req, res) => {
+  app.post('/api/banners', async (req, res) => {
     const db = loadDb();
     const { title, image, url } = req.body;
     if (!image) {
@@ -2893,15 +2893,15 @@ async function startServer() {
       active: true
     };
     db.banners.push(newBanner);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Banner successfully added', banners: db.banners });
   });
 
-  app.delete('/api/banners/:id', (req, res) => {
+  app.delete('/api/banners/:id', async (req, res) => {
     const db = loadDb();
     const { id } = req.params;
     db.banners = db.banners.filter(b => b.id !== id);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Banner successfully deleted', banners: db.banners });
   });
 
@@ -2919,7 +2919,7 @@ async function startServer() {
     res.json(db.settings);
   });
 
-  app.put('/api/settings', (req, res) => {
+  app.put('/api/settings', async (req, res) => {
     const db = loadDb();
     db.settings.commissionPercent = Number(req.body.commissionPercent || 5);
     if (req.body.adminWhatsapp !== undefined) {
@@ -2931,7 +2931,7 @@ async function startServer() {
     if (req.body.appName !== undefined) {
       db.settings.appName = String(req.body.appName || '').trim();
     }
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Pengaturan platform berhasil disimpan.', settings: db.settings });
   });
 
@@ -3036,7 +3036,7 @@ async function startServer() {
   // --- REAL-TIME USER DIAGNOSTICS & MALWARE SHIELD ENDPOINTS ---
 
   // 1. Submit a 1-click diagnostic/obstacle report from the user side
-  app.post('/api/diagnostics/reports', (req, res) => {
+  app.post('/api/diagnostics/reports', async (req, res) => {
     const { userId, userName, userEmail, issueType, description, systemInfo } = req.body;
     if (!issueType || !description) {
       return res.status(400).json({ error: 'Jenis hambatan dan deskripsi wajib diisi.' });
@@ -3064,7 +3064,7 @@ async function startServer() {
     };
 
     db.diagnosticReports.push(newReport);
-    saveDb(db);
+    await saveDb(db);
 
     res.status(201).json({ message: 'Laporan diagnosis kendala berhasil dikirim ke Admin Hub!', report: newReport });
   });
@@ -3078,7 +3078,7 @@ async function startServer() {
   });
 
   // 3. Update resolution status of a diagnostic report (PENDING <=> RESOLVED)
-  app.put('/api/admin/diagnostic-reports/:id', (req, res) => {
+  app.put('/api/admin/diagnostic-reports/:id', async (req, res) => {
     const { status } = req.body;
     const db = loadDb();
     if (!db.diagnosticReports) db.diagnosticReports = [];
@@ -3090,12 +3090,12 @@ async function startServer() {
     if (status) {
       report.status = status;
     }
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Status laporan kendala berhasil diperbarui.', report });
   });
 
   // 4. Delete a diagnostic report
-  app.delete('/api/admin/diagnostic-reports/:id', (req, res) => {
+  app.delete('/api/admin/diagnostic-reports/:id', async (req, res) => {
     const db = loadDb();
     if (!db.diagnosticReports) db.diagnosticReports = [];
     const index = db.diagnosticReports.findIndex(r => r.id === req.params.id);
@@ -3104,7 +3104,7 @@ async function startServer() {
     }
 
     db.diagnosticReports.splice(index, 1);
-    saveDb(db);
+    await saveDb(db);
     res.json({ message: 'Laporan kendala berhasil dihapus.' });
   });
 
