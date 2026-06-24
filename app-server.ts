@@ -693,7 +693,14 @@ async function startServer() {
       await saveDb(db);
     }
 
-    // If sessionToken is not provided or not in the user's sessions list, invalid session
+    // SELF-HEALING: If sessionToken is missing/falsy, create a new one instead of kicking them out
+    if (!sessionToken) {
+      const newSessionToken = await createAndAddSession(db, user, req);
+      await saveDb(db);
+      return res.json({ valid: true, sessionToken: newSessionToken });
+    }
+
+    // If sessionToken is provided but not in the user's sessions list, invalid session
     const activeSession = user.sessions.find(s => s.id === sessionToken);
     if (!activeSession) {
       return res.json({ valid: false, error: 'Sesi tidak valid atau telah dihapus oleh pengelola perangkat.' });
@@ -2859,7 +2866,9 @@ async function startServer() {
         addressReceiver: user.addressReceiver,
         addressPhone: user.addressPhone,
         addressLatLng: user.addressLatLng,
-        isGuest: user.isGuest
+        isGuest: user.isGuest,
+        sessionToken: user.sessionToken,
+        sessions: user.sessions
       }
     });
   });

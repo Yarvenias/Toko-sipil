@@ -326,6 +326,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               "Akun Anda telah masuk di perangkat lain. Sesi di perangkat ini kedaluwarsa secara otomatis.",
               "error"
             );
+          } else if (data && data.sessionToken && data.sessionToken !== currentUser.sessionToken) {
+            // Self-healing: save newly issued sessionToken
+            handleSetCurrentUser({
+              ...currentUser,
+              sessionToken: data.sessionToken
+            });
           }
         }
       } catch (e) {
