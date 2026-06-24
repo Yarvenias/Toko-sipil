@@ -120,6 +120,16 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
+  // Vercel Serverless routing normalize helper
+  app.use((req, res, next) => {
+    const originalUrl = req.url || '';
+    if (process.env.VERCEL && !originalUrl.startsWith('/api') && !originalUrl.startsWith('/index.html')) {
+      req.url = '/api' + (originalUrl.startsWith('/') ? '' : '/') + originalUrl;
+      console.log(`[Server] Normalized URL for Vercel from ${originalUrl} to ${req.url}`);
+    }
+    next();
+  });
+
   // Initialize and sync Firestore database
   await initDb();
 
