@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { OrderStatus, ApplicationStatus } from '../types';
 import MapPicker from './MapPicker';
+import DeviceManager from './DeviceManager';
 import { jsPDF } from 'jspdf';
 import { compressAndResizeImage } from '../utils/imageCompressor';
 
@@ -1152,6 +1153,9 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
               </form>
             </div>
           )}
+
+          {/* Device Manager / Riwayat Perangkat */}
+          <DeviceManager />
         </div>
       )}
 

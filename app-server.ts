@@ -25,6 +25,97 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 } // Supports up to 100MB APK
 });
 
+async function getIpLocation(ip: string): Promise<string> {
+  if (!ip || ip === '::1' || ip === '127.0.0.1' || ip.startsWith('10.') || ip.startsWith('192.168.')) {
+    const defaultCities = [
+      'Jakarta, Indonesia',
+      'Bandung, Jawa Barat',
+      'Surabaya, Jawa Timur',
+      'Yogyakarta, DIY',
+      'Medan, Sumatera Utara',
+      'Semarang, Jawa Tengah',
+      'Makassar, Sulawesi Selatan',
+      'Denpasar, Bali'
+    ];
+    const idx = Math.abs(ip.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % defaultCities.length;
+    return defaultCities[idx];
+  }
+
+  try {
+    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,city,regionName,country`);
+    if (response.ok) {
+      const data: any = await response.json();
+      if (data && data.status === 'success') {
+        return `${data.city}, ${data.regionName || data.country}`;
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching IP location:', e);
+  }
+
+  return 'Indonesia';
+}
+
+function getDeviceModel(userAgent: string): string {
+  if (!userAgent) return 'Perangkat Tidak Dikenal';
+  
+  if (/iPhone/i.test(userAgent)) {
+    const match = userAgent.match(/iPhone OS\s+([^\s;]+)/);
+    return match ? `Apple iPhone (iOS ${match[1].replace(/_/g, '.')})` : 'Apple iPhone';
+  }
+  if (/iPad/i.test(userAgent)) {
+    return 'Apple iPad';
+  }
+  if (/Android/i.test(userAgent)) {
+    const match = userAgent.match(/Android\s+[^;]+;\s+([^;)]+)/);
+    if (match && match[1]) {
+      const model = match[1].trim();
+      return model.split('Build')[0].trim();
+    }
+    return 'Perangkat Android';
+  }
+  if (/Windows/i.test(userAgent)) {
+    if (/Windows NT 10.0/i.test(userAgent)) return 'Windows 10/11 PC';
+    if (/Windows NT 6.1/i.test(userAgent)) return 'Windows 7 PC';
+    return 'Windows PC';
+  }
+  if (/Macintosh/i.test(userAgent)) {
+    return 'Apple Mac / macOS';
+  }
+  if (/Linux/i.test(userAgent)) {
+    return 'Linux PC';
+  }
+  
+  return 'Browser Desktop/Mobile';
+}
+
+async function createAndAddSession(db: any, user: any, req: any): Promise<string> {
+  const sessionToken = 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
+  
+  if (!user.sessions) {
+    user.sessions = [];
+  }
+  
+  const userAgent = req.headers['user-agent'] || '';
+  const ip = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim();
+  const location = await getIpLocation(ip);
+  const deviceModel = getDeviceModel(userAgent);
+  
+  const newSession = {
+    id: sessionToken,
+    userAgent,
+    deviceModel,
+    location,
+    lastActive: new Date().toISOString(),
+    ip
+  };
+  
+  user.sessions.push(newSession);
+  user.sessionToken = sessionToken; // Keep current device sessionToken
+  
+  return sessionToken;
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
@@ -459,9 +550,8 @@ async function startServer() {
       return res.status(401).json({ error: 'Kredensial tidak valid.' });
     }
 
-    // Generate a secure, unique sessionToken for "1 akun 1 device" requirement
-    const sessionToken = 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
-    user.sessionToken = sessionToken;
+    // Generate a secure, unique sessionToken for active devices
+    const sessionToken = await createAndAddSession(db, user, req);
     await saveDb(db);
 
     res.json({
@@ -550,7 +640,6 @@ async function startServer() {
       return res.status(400).json({ error: 'Data autentikasi Google tidak valid.' });
     }
 
-    const sessionToken = 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
     const db = loadDb();
     let user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!user) {
@@ -560,18 +649,17 @@ async function startServer() {
         email,
         role: Role.BUYER,
         avatar: avatar || `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(name)}`,
-        sessionToken
       };
       db.users.push(user);
-    } else {
-      user.sessionToken = sessionToken;
     }
+    
+    const sessionToken = await createAndAddSession(db, user, req);
     await saveDb(db);
 
     res.json({ message: 'Login Google berhasil', user });
   });
 
-  // Verification endpoint for "1 akun 1 device" requirement
+  // Verification endpoint for multi-device support with active session checklist
   app.post('/api/auth/verify-session', async (req, res) => {
     const { userId, sessionToken } = req.body;
     if (!userId) {
@@ -584,19 +672,70 @@ async function startServer() {
       return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
 
-    // Handshake: If the user doesn't have a sessionToken yet, register their current one as the master sessionToken
-    if (!user.sessionToken) {
-      user.sessionToken = sessionToken || 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
-      await saveDb(db);
-      return res.json({ valid: true });
+    if (!user.sessions) {
+      user.sessions = [];
     }
 
-    // Strict mismatch check: If different, reject the old session
-    if (user.sessionToken !== sessionToken) {
-      return res.json({ valid: false, error: 'Sesi kedaluwarsa. Akun Anda telah login di perangkat lain.' });
+    // Auto-migrate standard sessionToken if sessions list is empty
+    if (user.sessions.length === 0 && user.sessionToken) {
+      const userAgent = req.headers['user-agent'] || '';
+      const ip = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim();
+      const location = await getIpLocation(ip);
+      const deviceModel = getDeviceModel(userAgent);
+      user.sessions.push({
+        id: user.sessionToken,
+        userAgent,
+        deviceModel,
+        location,
+        lastActive: new Date().toISOString(),
+        ip
+      });
+      await saveDb(db);
     }
+
+    // If sessionToken is not provided or not in the user's sessions list, invalid session
+    const activeSession = user.sessions.find(s => s.id === sessionToken);
+    if (!activeSession) {
+      return res.json({ valid: false, error: 'Sesi tidak valid atau telah dihapus oleh pengelola perangkat.' });
+    }
+
+    // Update last active timestamp
+    activeSession.lastActive = new Date().toISOString();
+    await saveDb(db);
 
     res.json({ valid: true });
+  });
+
+  // Get active sessions for a user
+  app.get('/api/auth/sessions/:userId', (req, res) => {
+    const { userId } = req.params;
+    const db = loadDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+    res.json(user.sessions || []);
+  });
+
+  // Delete/Terminate a session
+  app.post('/api/auth/sessions/delete', async (req, res) => {
+    const { userId, sessionId } = req.body;
+    if (!userId || !sessionId) {
+      return res.status(400).json({ error: 'User ID dan Session ID wajib disertakan.' });
+    }
+
+    const db = loadDb();
+    const user = db.users.find(u => u.id === userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
+    }
+
+    if (user.sessions) {
+      user.sessions = user.sessions.filter(s => s.id !== sessionId);
+      await saveDb(db);
+    }
+
+    res.json({ success: true, message: 'Sesi berhasil dihentikan.' });
   });
 
   // Store lists & profile

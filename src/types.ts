@@ -33,6 +33,16 @@ export interface User {
   addressPhone?: string;
   addressLatLng?: { lat: number; lng: number };
   sessionToken?: string;
+  sessions?: UserSession[];
+}
+
+export interface UserSession {
+  id: string; // sessionToken
+  userAgent: string;
+  deviceModel: string;
+  location: string;
+  lastActive: string; // ISO string
+  ip?: string;
 }
 
 export enum ApplicationStatus {
