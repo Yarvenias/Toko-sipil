@@ -133,6 +133,28 @@ async function startServer() {
   // Initialize and sync Firestore database
   await initDb();
 
+  // Cache synchronization for serverless environment across warm instances
+  let lastSyncTime = Date.now();
+  const SYNC_TTL_MS = 3000;
+  app.use(async (req, res, next) => {
+    if (process.env.VERCEL) {
+      const now = Date.now();
+      const reqPath = req.path || '';
+      const isCriticalAuthRoute = reqPath.includes('/auth/');
+      
+      if (isCriticalAuthRoute || (now - lastSyncTime > SYNC_TTL_MS)) {
+        try {
+          console.log(`[Serverless Sync] Refreshing database from Firestore for path: ${reqPath}`);
+          await initDb();
+          lastSyncTime = Date.now();
+        } catch (err) {
+          console.error('[Serverless Sync] Failed to refresh database from Firestore:', err);
+        }
+      }
+    }
+    next();
+  });
+
   // JSON parsing and size limits
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));

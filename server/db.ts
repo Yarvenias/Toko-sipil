@@ -556,52 +556,67 @@ export function loadDb(): FullDatabase {
   return initial;
 }
 
+let activeInitPromise: Promise<FullDatabase> | null = null;
+
 // Global initialization logic called when server boots
 export async function initDb(): Promise<FullDatabase> {
-  console.log('🔄 Initializing database sync with Firestore...');
-  
-  // Make sure local cachedDb is initialized
-  const db = loadDb();
-
-  try {
-    const querySnapshot = await getDocs(collection(firestore, 'tables'));
-    if (querySnapshot.empty) {
-      console.log('📤 Firestore is empty! Uploading initial seed data to Cloud Firestore...');
-      // Upload every table as a document in parallel
-      const uploadPromises = TABLE_KEYS.map(async (key) => {
-        const tableRef = doc(firestore, 'tables', key);
-        await setDoc(tableRef, { data: db[key] });
-        lastSavedStateJson[key] = JSON.stringify(db[key]);
-      });
-      await Promise.all(uploadPromises);
-      console.log('✅ Firestore seeding completed successfully!');
-    } else {
-      console.log('📥 Loading data from Firestore...');
-      querySnapshot.forEach((docSnap) => {
-        const key = docSnap.id as keyof FullDatabase;
-        if (TABLE_KEYS.includes(key)) {
-          const docData = docSnap.data();
-          if (docData && docData.data !== undefined) {
-            (db as any)[key] = docData.data;
-            lastSavedStateJson[key] = JSON.stringify(docData.data);
-          }
-        }
-      });
-      // Sync local file with Firestore data for fast offline fallback
-      try {
-        fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
-        fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(db, null, 2), 'utf-8');
-      } catch (err) {
-        // Safe to ignore in read-only environments
-      }
-      console.log('✅ Firestore sync loaded successfully!');
-    }
-  } catch (error) {
-    console.error('❌ Failed to sync with Firestore, using local filesystem database instead:', error);
+  if (activeInitPromise) {
+    return activeInitPromise;
   }
 
-  cachedDb = db;
-  return db;
+  activeInitPromise = (async () => {
+    console.log('🔄 Initializing database sync with Firestore...');
+    
+    // Make sure local cachedDb is initialized
+    const db = loadDb();
+
+    try {
+      const querySnapshot = await getDocs(collection(firestore, 'tables'));
+      if (querySnapshot.empty) {
+        console.log('📤 Firestore is empty! Uploading initial seed data to Cloud Firestore...');
+        // Upload every table as a document in parallel
+        const uploadPromises = TABLE_KEYS.map(async (key) => {
+          const tableRef = doc(firestore, 'tables', key);
+          await setDoc(tableRef, { data: db[key] });
+          lastSavedStateJson[key] = JSON.stringify(db[key]);
+        });
+        await Promise.all(uploadPromises);
+        console.log('✅ Firestore seeding completed successfully!');
+      } else {
+        console.log('📥 Loading data from Firestore...');
+        querySnapshot.forEach((docSnap) => {
+          const key = docSnap.id as keyof FullDatabase;
+          if (TABLE_KEYS.includes(key)) {
+            const docData = docSnap.data();
+            if (docData && docData.data !== undefined) {
+              (db as any)[key] = docData.data;
+              lastSavedStateJson[key] = JSON.stringify(docData.data);
+            }
+          }
+        });
+        // Sync local file with Firestore data for fast offline fallback
+        try {
+          fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+          fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(db, null, 2), 'utf-8');
+        } catch (err) {
+          // Safe to ignore in read-only environments
+        }
+        console.log('✅ Firestore sync loaded successfully!');
+      }
+    } catch (error) {
+      console.error('❌ Failed to sync with Firestore, using local filesystem database instead:', error);
+    }
+
+    cachedDb = db;
+    return db;
+  })();
+
+  try {
+    const result = await activeInitPromise;
+    return result;
+  } finally {
+    activeInitPromise = null;
+  }
 }
 
 // Save database to memory, local filesystem, and cloud Firestore
