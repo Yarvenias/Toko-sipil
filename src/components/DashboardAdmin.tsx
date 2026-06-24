@@ -9,7 +9,7 @@ import { Role, ApplicationStatus, BankVerificationStatus, WithdrawalStatus } fro
 import { 
   ShieldCheck, AlertTriangle, Check, X, Tag, Settings as SettingsIcon, 
   Layers, CreditCard, Landmark, ArrowUpRight, BarChart2, Store, Users, ShoppingCart, Percent,
-  ShieldAlert, Edit, Trash2, UserPlus, UserCheck, Search, Key, Image as ImageIcon, Wallet, BarChart3, TrendingUp, PieChart as PieIcon,
+  ShieldAlert, Edit, Trash2, UserPlus, UserCheck, Search, Key, Eye, EyeOff, Image as ImageIcon, Wallet, BarChart3, TrendingUp, PieChart as PieIcon,
   Activity, RefreshCw
 } from 'lucide-react';
 import { 
@@ -58,6 +58,7 @@ export default function DashboardAdmin() {
   const [userFormAngkatan, setUserFormAngkatan] = useState('');
   const [userFormCampus, setUserFormCampus] = useState('');
   const [userFormPassword, setUserFormPassword] = useState('');
+  const [showUserFormPassword, setShowUserFormPassword] = useState(false);
   const [userFormAvatar, setUserFormAvatar] = useState('');
   const [userFormPhone, setUserFormPhone] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -1855,14 +1856,21 @@ export default function DashboardAdmin() {
                   </label>
                   <div className="relative">
                     <input
-                      type="password"
+                      type={showUserFormPassword ? "text" : "password"}
                       required={!editingUser}
                       value={userFormPassword}
                       onChange={(e) => setUserFormPassword(e.target.value)}
                       placeholder={editingUser ? "Masukkan password baru jika ingin meriset..." : "Minimal 6 karakter tepercaya..."}
-                      className="w-full bg-white border border-black p-2.5 pl-9 rounded-none text-xs text-black font-mono"
+                      className="w-full bg-white border border-black p-2.5 pl-9 pr-10 rounded-none text-xs text-black font-mono"
                     />
                     <Key className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
+                    <button
+                      type="button"
+                      onClick={() => setShowUserFormPassword(!showUserFormPassword)}
+                      className="absolute right-3 top-3 text-gray-400 hover:text-black cursor-pointer bg-transparent border-none focus:outline-none"
+                    >
+                      {showUserFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 

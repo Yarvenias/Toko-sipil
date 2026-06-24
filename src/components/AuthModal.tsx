@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Lock, Mail, ArrowRight, ShieldCheck, MailWarning } from 'lucide-react';
+import { X, Lock, Mail, ArrowRight, ShieldCheck, MailWarning, Eye, EyeOff } from 'lucide-react';
 import { Role } from '../types';
 
 interface AuthModalProps {
@@ -20,6 +20,7 @@ export default function AuthModal({ onClose }: AuthModalProps) {
   const [justRegistered, setJustRegistered] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [angkatan, setAngkatan] = useState('');
   const [campus, setCampus] = useState('');
@@ -193,13 +194,20 @@ export default function AuthModal({ onClose }: AuthModalProps) {
             <div className="relative">
               <Lock className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
               <input 
-                type="password" 
+                type={showPassword ? "text" : "password"} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full bg-white border-2 border-black pl-9 pr-3 py-2 rounded-none focus:outline-none"
+                className="w-full bg-white border-2 border-black pl-9 pr-10 py-2 rounded-none focus:outline-none"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-black cursor-pointer bg-transparent border-none focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 

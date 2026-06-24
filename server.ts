@@ -8,7 +8,6 @@ import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
-import { createServer as createViteServer } from 'vite';
 import { loadDb, saveDb, initDb } from './server/db';
 import { Role, OrderStatus, ApplicationStatus, BankVerificationStatus, WithdrawalStatus } from './src/types';
 import multer from 'multer';
@@ -159,9 +158,16 @@ async function startServer() {
         res.setHeader('Content-Disposition', 'attachment; filename="TokoSipil_Official_v1.0.0.apk"');
         response.pipe(res);
 
-        // Async write to disk for caching
-        const cacheStream = fs.createWriteStream(destPath);
-        response.pipe(cacheStream);
+        // Async write to disk for caching (disabled on Vercel)
+        if (!process.env.VERCEL) {
+          try {
+            const cacheStream = fs.createWriteStream(destPath);
+            cacheStream.on('error', (err) => console.error('cacheStream error:', err));
+            response.pipe(cacheStream);
+          } catch (err) {
+            console.error('Failed to create APK cacheStream:', err);
+          }
+        }
       } else {
         console.warn(`Source repo responded with status ${statusCode}, generating resilient local bundle instead.`);
         serveFallbackAndCache(destPath, res);
@@ -2967,6 +2973,7 @@ async function startServer() {
 
   // --- VITE DEV OR PRODUCTION STATIC BINDINGS ---
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2980,9 +2987,9 @@ async function startServer() {
     });
   }
 
-  // Pre-cache actual APK file in background on startup to bypass delay
+  // Pre-cache actual APK file in background on startup to bypass delay (disabled on Vercel)
   const apkFilePath = path.join(process.cwd(), 'TokoSipil_Official_v1.0.0.apk');
-  if (!fs.existsSync(apkFilePath)) {
+  if (!process.env.VERCEL && !fs.existsSync(apkFilePath)) {
     console.log('⚡ Background pre-downloading valid APK for public download...');
     const cacheFile = fs.createWriteStream(apkFilePath);
     https.get('https://raw.githubusercontent.com/appium/android-apks/master/ApiDemos-debug.apk', (response) => {

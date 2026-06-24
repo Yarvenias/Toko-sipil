@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache, doc, setDoc, getDocs, collection } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   User, Role, Store, StoreApplication, Product, Category, Order, OrderStatus,
@@ -20,7 +20,10 @@ const DB_BACKUP_PATH = path.join(process.cwd(), 'db_backup.json');
 
 // Initialize Firebase
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const firestore = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+export const firestore = initializeFirestore(firebaseApp, {
+  localCache: memoryLocalCache(),
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
 
 export interface FullDatabase {
   users: User[];

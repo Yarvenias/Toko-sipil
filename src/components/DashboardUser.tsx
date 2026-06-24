@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
-  User as UserIcon, Store, Landmark, ShoppingBag, Eye, Star, CheckSquare, 
+  User as UserIcon, Store, Landmark, ShoppingBag, Eye, EyeOff, Star, CheckSquare, 
   Tag, MapPin, KeyRound, Heart, ChevronRight, FileText, UploadCloud, AlertCircle,
   MessageSquare, Printer, Map, ShieldCheck, Lock, UserCheck, Globe,
   Activity, Wrench, Cpu, Send, CheckCircle, XCircle, Wifi, AlertTriangle, Download
@@ -59,6 +59,9 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [securityFeedback, setSecurityFeedback] = useState<string | null>(null);
   const [securityError, setSecurityError] = useState<string | null>(null);
   const [isSavingSecurity, setIsSavingSecurity] = useState(false);
@@ -1558,33 +1561,60 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <label className="block text-gray-400 font-extrabold uppercase text-[9px]">PASSWORD LAMA</label>
-                  <input 
-                    type="password" 
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border-2 border-black p-2 font-bold focus:outline-none text-xs text-black"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showOldPassword ? "text" : "password"} 
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-slate-50 border-2 border-black p-2 pr-9 font-bold focus:outline-none text-xs text-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOldPassword(!showOldPassword)}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-black cursor-pointer bg-transparent border-none focus:outline-none"
+                    >
+                      {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="block text-gray-400 font-extrabold uppercase text-[9px]">PASSWORD BARU</label>
-                  <input 
-                    type="password" 
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimal 4 karakter"
-                    className="w-full bg-slate-50 border-2 border-black p-2 font-bold focus:outline-none text-xs text-black"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showNewPassword ? "text" : "password"} 
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimal 4 karakter"
+                      className="w-full bg-slate-50 border-2 border-black p-2 pr-9 font-bold focus:outline-none text-xs text-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-black cursor-pointer bg-transparent border-none focus:outline-none"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="block text-gray-400 font-extrabold uppercase text-[9px]">KONFIRMASI PASSWORD</label>
-                  <input 
-                    type="password" 
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Ulangi password baru"
-                    className="w-full bg-slate-50 border-2 border-black p-2 font-bold focus:outline-none text-xs text-black"
-                  />
+                  <div className="relative">
+                    <input 
+                      type={showConfirmNewPassword ? "text" : "password"} 
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Ulangi password baru"
+                      className="w-full bg-slate-50 border-2 border-black p-2 pr-9 font-bold focus:outline-none text-xs text-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-black cursor-pointer bg-transparent border-none focus:outline-none"
+                    >
+                      {showConfirmNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
               <p className="text-[9px] text-gray-400 mt-2 italic">* Kosongkan isian password jika Anda tidak berniat melakukan penggantian sandi rahasia.</p>
