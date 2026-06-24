@@ -3,9 +3,7 @@
   "functions": {
     "api/**/*.ts": {
       "includeFiles": [
-        "app-server.ts",
-        "server/db.ts",
-        "src/types.ts",
+        "dist/server.cjs",
         "firebase-applet-config.json",
         "db.json"
       ]
