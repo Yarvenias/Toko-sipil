@@ -1,4 +1,4 @@
-import { appPromise } from '../server.ts';
+import { appPromise } from '../app-server';
 
 export default async function handler(req: any, res: any) {
   const app = await appPromise;
