@@ -1,4 +1,4 @@
-import { appPromise } from '../dist/server.cjs';
+import { appPromise } from './server.cjs';
 
 export default async function handler(req: any, res: any) {
   const app = await appPromise;

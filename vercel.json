@@ -2,17 +2,17 @@
   "version": 2,
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": "{dist/server.cjs,firebase-applet-config.json,db.json}"
+      "includeFiles": "{api/server.cjs,firebase-applet-config.json,db.json}"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api"
     },
     {
       "source": "/TokoSipil_Official_v1.0.0.apk",
-      "destination": "/api/index.ts"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
