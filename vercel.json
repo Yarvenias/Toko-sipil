@@ -1,5 +1,16 @@
 {
   "version": 2,
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": [
+        "app-server.ts",
+        "server/db.ts",
+        "src/types.ts",
+        "firebase-applet-config.json",
+        "db.json"
+      ]
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
