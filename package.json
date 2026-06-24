@@ -21,6 +21,7 @@
     "@types/google.maps": "^3.65.1",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.14.0",
+    "@vercel/analytics": "^2.0.1",
     "@vis.gl/react-google-maps": "^1.8.3",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",

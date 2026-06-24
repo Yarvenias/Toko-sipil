@@ -23,6 +23,7 @@ import TrackOrder from './components/TrackOrder';
 import AndroidBuilder from './components/AndroidBuilder';
 import { Sparkles, ArrowRight, Instagram, Mail, Info, Store, Heart, ShoppingBag, ShieldAlert, CheckCircle2, AlertTriangle, XCircle, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 
 function AppContent() {
   const { 
@@ -606,6 +607,7 @@ export default function App() {
   return (
     <AppProvider>
       <AppContent />
+      <Analytics />
     </AppProvider>
   );
 }
