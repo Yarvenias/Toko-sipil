@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "Table": {
+      "title": "Table",
+      "description": "A database table stored as a single document containing an array of records or a configuration object",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "description": "Array of records for list-based tables"
+        },
+        "settings": {
+          "type": "object",
+          "description": "Configuration settings for single-value tables"
+        },
+        "config": {
+          "type": "object",
+          "description": "Configuration details for android configuration"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/tables/{tableName}": {
+      "schema": "Table",
+      "description": "Individual collection table data stored under a unique table name"
+    }
+  }
+}

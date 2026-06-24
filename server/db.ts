@@ -5,6 +5,9 @@
 
 import fs from 'fs';
 import path from 'path';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 import { 
   User, Role, Store, StoreApplication, Product, Category, Order, OrderStatus,
   Wallet, WalletTransaction, BankAccount, Withdrawal, Chat, Message, Review,
@@ -14,6 +17,10 @@ import {
 
 const DB_PATH = path.join(process.cwd(), 'db.json');
 const DB_BACKUP_PATH = path.join(process.cwd(), 'db_backup.json');
+
+// Initialize Firebase
+const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const firestore = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
 export interface FullDatabase {
   users: User[];
@@ -37,56 +44,36 @@ export interface FullDatabase {
   androidConfig?: AndroidConfig;
 }
 
-export function loadDb(): FullDatabase {
-  if (fs.existsSync(DB_PATH)) {
-    try {
-      const raw = fs.readFileSync(DB_PATH, 'utf-8');
-      const data = JSON.parse(raw);
-      if (!data.follows) data.follows = [];
-      if (!data.diagnosticReports) data.diagnosticReports = [];
-      if (!data.androidConfig) {
-        data.androidConfig = {
-          appName: 'Toko Sipil Official',
-          packageName: 'com.tokosipil.official',
-          appVersion: '1.0.0',
-          versionCode: '1',
-          serverUrl: 'https://ais-dev-ao4ij3eqewiigwwcl4kr6t-934223265379.asia-southeast1.run.app',
-          statusBarColor: '#0b2545',
-          splashStyle: 'gothic',
-          enableGPS: true,
-          enableCamera: true,
-          enablePush: false,
-          enableHardwareAcc: true
-        };
-      }
-      // Synchronize with backup if it doesn't exist
-      if (!fs.existsSync(DB_BACKUP_PATH)) {
-        fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(data, null, 2), 'utf-8');
-      }
-      return data;
-    } catch (e) {
-      console.error("Error reading database file, attempting recovery from backup", e);
-    }
-  }
+const TABLE_KEYS: (keyof FullDatabase)[] = [
+  'users',
+  'storeApplications',
+  'stores',
+  'products',
+  'categories',
+  'orders',
+  'wallets',
+  'walletTransactions',
+  'bankAccounts',
+  'withdrawals',
+  'chats',
+  'messages',
+  'reviews',
+  'vouchers',
+  'banners',
+  'settings',
+  'follows',
+  'diagnosticReports',
+  'androidConfig'
+];
 
-  // Attempt recovery from backup file if main file is missing or corrupted
-  if (fs.existsSync(DB_BACKUP_PATH)) {
-    try {
-      const raw = fs.readFileSync(DB_BACKUP_PATH, 'utf-8');
-      const data = JSON.parse(raw);
-      if (!data.follows) data.follows = [];
-      if (!data.diagnosticReports) data.diagnosticReports = [];
-      // Restore the main db file
-      fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
-      console.log("✓ Database successfully recovered from backup file (db_backup.json)");
-      return data;
-    } catch (e) {
-      console.error("Error reading backup database file", e);
-    }
-  }
-  
-  // Seed initial data
-  const initialDb: FullDatabase = {
+// In-memory cache
+let cachedDb: FullDatabase | null = null;
+// Track last saved state to avoid redundant Firestore writes
+let lastSavedStateJson: { [key: string]: string } = {};
+
+// Helper to load fallback seed data
+function getInitialSeedData(): FullDatabase {
+  return {
     users: [
       { id: 'usr_admin', name: 'Super Admin Toko Sipil', email: 'admin@tokosipil.com', role: Role.SUPER_ADMIN, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150' },
       { id: 'usr_pegawai', name: 'Ahmad Staff', email: 'pegawai@tokosipil.com', role: Role.PEGAWAI, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
@@ -114,7 +101,7 @@ export function loadDb(): FullDatabase {
       },
       {
         id: 'app_pending_toko',
-        userId: 'usr_buyer', // for testing request store opening
+        userId: 'usr_buyer',
         name: 'Karnaval Store',
         username: 'karnaval',
         ownerName: 'Iyasya',
@@ -184,7 +171,7 @@ export function loadDb(): FullDatabase {
         sku: 'MT-PIN-02',
         description: 'High definition blueprint prints detailing fallen angel skeletons. Signature Toko Sipil cut with relaxed shoulder fitment.',
         price: 219000,
-        discount: 10, // 10% discount
+        discount: 10,
         weight: 250,
         stock: 30,
         categoryId: 'cat_tshirts',
@@ -303,7 +290,7 @@ export function loadDb(): FullDatabase {
         status: OrderStatus.COMPLETED,
         paymentMethod: 'GoPay',
         resiNo: 'JT9812491244',
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
@@ -332,7 +319,7 @@ export function loadDb(): FullDatabase {
         },
         courier: 'Sicepat (Regular)',
         shippingCost: 12000,
-        discount: 10000, // code VOUCHER10
+        discount: 10000,
         platformFee: 2000,
         totalProductPrice: 394200,
         totalAmount: 398200,
@@ -343,15 +330,15 @@ export function loadDb(): FullDatabase {
           bank: 'BCA'
         },
         resiNo: 'SI98248102422',
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
         updatedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
       }
     ],
     wallets: [
       {
         storeId: 'str_maternal',
-        balance: 450000, // already completed order balance (219000 minus 5% platform fee = 208050, plus other sales)
-        heldBalance: 374490, // corresponding to ord_sample_2 which is SHIPPED but not completed (394200 - 5% fee = 374490)
+        balance: 450000,
+        heldBalance: 374490,
         totalEarnings: 824490,
         totalWithdrawn: 100000
       }
@@ -505,16 +492,139 @@ export function loadDb(): FullDatabase {
       enableHardwareAcc: true
     }
   };
-
-  saveDb(initialDb);
-  return initialDb;
 }
 
+// Initial direct synchronous load of local db.json for fast boot fallback
+export function loadDb(): FullDatabase {
+  if (cachedDb) {
+    return cachedDb;
+  }
+
+  // Fallback to local db.json on startup
+  if (fs.existsSync(DB_PATH)) {
+    try {
+      const raw = fs.readFileSync(DB_PATH, 'utf-8');
+      const data = JSON.parse(raw);
+      if (!data.follows) data.follows = [];
+      if (!data.diagnosticReports) data.diagnosticReports = [];
+      if (!data.androidConfig) {
+        data.androidConfig = getInitialSeedData().androidConfig;
+      }
+      cachedDb = data;
+      // Capture JSON string of each table
+      TABLE_KEYS.forEach(key => {
+        lastSavedStateJson[key] = JSON.stringify(cachedDb?.[key] || []);
+      });
+      return data;
+    } catch (e) {
+      console.error("Error reading database file, attempting recovery from backup", e);
+    }
+  }
+
+  // Attempt backup restore
+  if (fs.existsSync(DB_BACKUP_PATH)) {
+    try {
+      const raw = fs.readFileSync(DB_BACKUP_PATH, 'utf-8');
+      const data = JSON.parse(raw);
+      fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      cachedDb = data;
+      TABLE_KEYS.forEach(key => {
+        lastSavedStateJson[key] = JSON.stringify(cachedDb?.[key] || []);
+      });
+      return data;
+    } catch (e) {
+      console.error("Error recovery from backup failed", e);
+    }
+  }
+
+  // Use seed data
+  const initial = getInitialSeedData();
+  cachedDb = initial;
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2), 'utf-8');
+    fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(initial, null, 2), 'utf-8');
+  } catch (err) {
+    console.error("Failed saving seed file", err);
+  }
+
+  TABLE_KEYS.forEach(key => {
+    lastSavedStateJson[key] = JSON.stringify(initial[key] || []);
+  });
+  return initial;
+}
+
+// Global initialization logic called when server boots
+export async function initDb(): Promise<FullDatabase> {
+  console.log('🔄 Initializing database sync with Firestore...');
+  
+  // Make sure local cachedDb is initialized
+  const db = loadDb();
+
+  try {
+    const querySnapshot = await getDocs(collection(firestore, 'tables'));
+    if (querySnapshot.empty) {
+      console.log('📤 Firestore is empty! Uploading initial seed data to Cloud Firestore...');
+      // Upload every table as a document in parallel
+      const uploadPromises = TABLE_KEYS.map(async (key) => {
+        const tableRef = doc(firestore, 'tables', key);
+        await setDoc(tableRef, { data: db[key] });
+        lastSavedStateJson[key] = JSON.stringify(db[key]);
+      });
+      await Promise.all(uploadPromises);
+      console.log('✅ Firestore seeding completed successfully!');
+    } else {
+      console.log('📥 Loading data from Firestore...');
+      querySnapshot.forEach((docSnap) => {
+        const key = docSnap.id as keyof FullDatabase;
+        if (TABLE_KEYS.includes(key)) {
+          const docData = docSnap.data();
+          if (docData && docData.data !== undefined) {
+            (db as any)[key] = docData.data;
+            lastSavedStateJson[key] = JSON.stringify(docData.data);
+          }
+        }
+      });
+      // Sync local file with Firestore data for fast offline fallback
+      try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+        fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(db, null, 2), 'utf-8');
+      } catch (err) {
+        // Safe to ignore in read-only environments
+      }
+      console.log('✅ Firestore sync loaded successfully!');
+    }
+  } catch (error) {
+    console.error('❌ Failed to sync with Firestore, using local filesystem database instead:', error);
+  }
+
+  cachedDb = db;
+  return db;
+}
+
+// Save database to memory, local filesystem, and cloud Firestore
 export function saveDb(data: FullDatabase) {
+  cachedDb = data;
+
+  // 1. Save locally to db.json (instant synchronous write)
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
     fs.writeFileSync(DB_BACKUP_PATH, JSON.stringify(data, null, 2), 'utf-8');
   } catch (e) {
-    console.error("Error saving database", e);
+    // Safe to ignore in read-only filesystems (e.g., Vercel)
   }
+
+  // 2. Perform delta sync to Firestore asynchronously to avoid blocking the API response
+  TABLE_KEYS.forEach(async (key) => {
+    const currentJson = JSON.stringify(data[key]);
+    if (currentJson !== lastSavedStateJson[key]) {
+      // Data has changed, sync it!
+      lastSavedStateJson[key] = currentJson;
+      try {
+        const tableRef = doc(firestore, 'tables', key);
+        await setDoc(tableRef, { data: data[key] });
+      } catch (error) {
+        console.error(`❌ Failed to sync table [${key}] with Firestore:`, error);
+      }
+    }
+  });
 }

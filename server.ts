@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import https from 'https';
 import { createServer as createViteServer } from 'vite';
-import { loadDb, saveDb } from './server/db';
+import { loadDb, saveDb, initDb } from './server/db';
 import { Role, OrderStatus, ApplicationStatus, BankVerificationStatus, WithdrawalStatus } from './src/types';
 import multer from 'multer';
 
@@ -29,6 +29,9 @@ const upload = multer({
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
+
+  // Initialize and sync Firestore database
+  await initDb();
 
   // JSON parsing and size limits
   app.use(express.json({ limit: '10mb' }));
@@ -3002,7 +3005,9 @@ async function startServer() {
   }
 
   // Bind dynamically to support standard ports and cPanel Passenger Unix sockets
-  if (typeof PORT === 'string' && isNaN(Number(PORT))) {
+  if (process.env.VERCEL) {
+    console.log('Running as a Vercel Serverless Function - skipping app.listen()');
+  } else if (typeof PORT === 'string' && isNaN(Number(PORT))) {
     app.listen(PORT, () => {
       console.log(`System alternative boutique fashion server loaded on Unix socket: ${PORT}`);
     });
@@ -3011,6 +3016,8 @@ async function startServer() {
       console.log(`System alternative boutique fashion server loaded on port ${PORT}`);
     });
   }
+
+  return app;
 }
 
-startServer();
+export const appPromise = startServer();
