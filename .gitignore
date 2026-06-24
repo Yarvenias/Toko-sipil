@@ -1,6 +1,7 @@
 node_modules/
 build/
-dist/
+# dist/ is commented out so precompiled production build is pushed to git and pulled by cPanel
+# dist/
 coverage/
 .DS_Store
 *.log

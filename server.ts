@@ -28,7 +28,7 @@ const upload = multer({
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // JSON parsing and size limits
   app.use(express.json({ limit: '10mb' }));
@@ -3001,10 +3001,16 @@ async function startServer() {
     });
   }
 
-  // Bind to port 3000 and 0.0.0.0
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`System alternative boutique fashion server loaded on port ${PORT}`);
-  });
+  // Bind dynamically to support standard ports and cPanel Passenger Unix sockets
+  if (typeof PORT === 'string' && isNaN(Number(PORT))) {
+    app.listen(PORT, () => {
+      console.log(`System alternative boutique fashion server loaded on Unix socket: ${PORT}`);
+    });
+  } else {
+    app.listen(Number(PORT), '0.0.0.0', () => {
+      console.log(`System alternative boutique fashion server loaded on port ${PORT}`);
+    });
+  }
 }
 
 startServer();
