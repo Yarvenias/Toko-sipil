@@ -605,7 +605,7 @@ export async function initDb(): Promise<FullDatabase> {
 }
 
 // Save database to memory, local filesystem, and cloud Firestore
-export function saveDb(data: FullDatabase) {
+export async function saveDb(data: FullDatabase): Promise<void> {
   cachedDb = data;
 
   // 1. Save locally to db.json (instant synchronous write)
@@ -616,8 +616,8 @@ export function saveDb(data: FullDatabase) {
     // Safe to ignore in read-only filesystems (e.g., Vercel)
   }
 
-  // 2. Perform delta sync to Firestore asynchronously to avoid blocking the API response
-  TABLE_KEYS.forEach(async (key) => {
+  // 2. Perform delta sync to Firestore and await to prevent container freezing
+  const syncPromises = TABLE_KEYS.map(async (key) => {
     const currentJson = JSON.stringify(data[key]);
     if (currentJson !== lastSavedStateJson[key]) {
       // Data has changed, sync it!
@@ -630,4 +630,6 @@ export function saveDb(data: FullDatabase) {
       }
     }
   });
+
+  await Promise.all(syncPromises);
 }

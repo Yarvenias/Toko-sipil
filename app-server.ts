@@ -395,7 +395,7 @@ async function startServer() {
   });
 
   // Authenticaton endpoints
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, angkatan, campus } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Data registrasi tidak lengkap.' });
@@ -420,12 +420,12 @@ async function startServer() {
     };
 
     db.users.push(newUser);
-    saveDb(db);
+    await saveDb(db);
 
     res.status(201).json({ message: 'Registrasi berhasil', user: { ...newUser, password: undefined } });
   });
 
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email dan password wajib diisi.' });
@@ -440,7 +440,7 @@ async function startServer() {
     // Auto-promote special admin email to SUPER_ADMIN role on login
     if (user.email.toLowerCase() === 'iyasyaa13@gmail.com' && user.role !== Role.SUPER_ADMIN) {
       user.role = Role.SUPER_ADMIN;
-      saveDb(db);
+      await saveDb(db);
     }
 
     // Check if password matches stored password or development fallbacks for seeded users
@@ -449,7 +449,7 @@ async function startServer() {
     // If the user was registered without a password property, auto-assign the typed password as their active credential
     if (!user.password) {
       user.password = password;
-      saveDb(db);
+      await saveDb(db);
     }
     
     const isCustomMatch = user.password === password;
@@ -462,7 +462,7 @@ async function startServer() {
     // Generate a secure, unique sessionToken for "1 akun 1 device" requirement
     const sessionToken = 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
     user.sessionToken = sessionToken;
-    saveDb(db);
+    await saveDb(db);
 
     res.json({
       message: 'Login berhasil',
@@ -493,7 +493,7 @@ async function startServer() {
   });
 
   // Dynamic automatic guest synchronization to support fully insulated individual guest trials
-  app.post('/api/auth/guest', (req, res) => {
+  app.post('/api/auth/guest', async (req, res) => {
     const { id, name, email } = req.body;
     if (!id || !name || !email) {
       return res.status(400).json({ error: 'Data registrasi guest tidak lengkap.' });
@@ -514,7 +514,7 @@ async function startServer() {
         isGuest: true
       } as any;
       db.users.push(user);
-      saveDb(db);
+      await saveDb(db);
     }
 
     res.json({
@@ -544,7 +544,7 @@ async function startServer() {
     });
   });
 
-  app.post('/api/auth/google', (req, res) => {
+  app.post('/api/auth/google', async (req, res) => {
     const { name, email, avatar } = req.body;
     if (!email || !name) {
       return res.status(400).json({ error: 'Data autentikasi Google tidak valid.' });
@@ -566,13 +566,13 @@ async function startServer() {
     } else {
       user.sessionToken = sessionToken;
     }
-    saveDb(db);
+    await saveDb(db);
 
     res.json({ message: 'Login Google berhasil', user });
   });
 
   // Verification endpoint for "1 akun 1 device" requirement
-  app.post('/api/auth/verify-session', (req, res) => {
+  app.post('/api/auth/verify-session', async (req, res) => {
     const { userId, sessionToken } = req.body;
     if (!userId) {
       return res.status(400).json({ error: 'User ID wajib disertakan.' });
@@ -587,7 +587,7 @@ async function startServer() {
     // Handshake: If the user doesn't have a sessionToken yet, register their current one as the master sessionToken
     if (!user.sessionToken) {
       user.sessionToken = sessionToken || 'sess_' + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 9);
-      saveDb(db);
+      await saveDb(db);
       return res.json({ valid: true });
     }
 
@@ -2620,7 +2620,7 @@ async function startServer() {
     res.json({ success: true, message: 'Password Anda berhasil diubah.' });
   });
 
-  app.put('/api/auth/profile', (req, res) => {
+  app.put('/api/auth/profile', async (req, res) => {
     const { 
       id, name, angkatan, campus, avatar, 
       username, phone, gender,
@@ -2696,7 +2696,7 @@ async function startServer() {
       user.addressLatLng = addressLatLng; // {lat, lng} / null
     }
 
-    saveDb(db);
+    await saveDb(db);
     res.json({
       success: true,
       message: 'Profil Anda berhasil diperbarui.',
