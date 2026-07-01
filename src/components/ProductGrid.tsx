@@ -115,7 +115,7 @@ export default function ProductGrid({ onSelectProduct, standalone = false }: Pro
               <span>Pencarian untuk: "{searchQuery}" ({filteredList.length} hasil)</span>
               <button 
                 onClick={() => setSearchQuery('')}
-                className="underline text-red-400 hover:text-red-300 text-[10px] cursor-pointer"
+                className="underline text-brand-sage hover:text-white text-[10px] cursor-pointer"
               >
                 BERSIHKAN FILTER
               </button>
@@ -149,7 +149,7 @@ export default function ProductGrid({ onSelectProduct, standalone = false }: Pro
             return (
               <div 
                 key={product.id}
-                className="group relative bg-[#faf9f3] border-2 border-black hover:border-red-800 transition duration-300 maternal-shadow-sm flex flex-col justify-between"
+                className="group relative bg-[#faf9f3] border-2 border-black hover:border-brand-forest transition duration-300 maternal-shadow-sm flex flex-col justify-between"
                 id={`product-card-${product.id}`}
               >
                 {/* Image Wrap */}
@@ -164,7 +164,7 @@ export default function ProductGrid({ onSelectProduct, standalone = false }: Pro
 
                   {/* Absolute badgelines: Discount factor */}
                   {hasDiscount && (
-                    <div className="absolute top-2.5 left-2.5 bg-red-600 text-[#fcfbf7] font-mono text-[9px] font-bold px-2 py-0.5 border border-black z-10 select-none">
+                    <div className="absolute top-2.5 left-2.5 bg-brand-forest text-brand-cream font-mono text-[9px] font-bold px-2 py-0.5 border border-black z-10 select-none">
                       -{product.discount}% OFF
                     </div>
                   )}
@@ -179,7 +179,7 @@ export default function ProductGrid({ onSelectProduct, standalone = false }: Pro
                   <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id); }}
-                      className={`p-1.5 border border-black maternal-shadow-sm transition cursor-pointer ${isWishlisted ? 'bg-red-600 text-white' : 'bg-white text-black hover:bg-gray-100'}`}
+                      className={`p-1.5 border border-black maternal-shadow-sm transition cursor-pointer ${isWishlisted ? 'bg-brand-forest text-white' : 'bg-white text-black hover:bg-gray-100'}`}
                       title={isWishlisted ? 'Hapus dari Wishlist' : 'Tambah ke Wishlist'}
                       id={`wishlist-btn-${product.id}`}
                     >

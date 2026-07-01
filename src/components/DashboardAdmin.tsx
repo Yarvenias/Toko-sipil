@@ -10,7 +10,8 @@ import {
   ShieldCheck, AlertTriangle, Check, X, Tag, Settings as SettingsIcon, 
   Layers, CreditCard, Landmark, ArrowUpRight, BarChart2, Store, Users, ShoppingCart, Percent,
   ShieldAlert, Edit, Trash2, UserPlus, UserCheck, Search, Key, Eye, EyeOff, Image as ImageIcon, Wallet, BarChart3, TrendingUp, PieChart as PieIcon,
-  Activity, RefreshCw
+  Activity, RefreshCw, ChevronDown, ChevronRight, ChevronLeft, LogOut,
+  Menu, MessageSquare, Bell, Home, User
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, 
@@ -19,9 +20,18 @@ import {
 import { compressAndResizeImage } from '../utils/imageCompressor';
 
 export default function DashboardAdmin() {
-  const { currentUser, categories, products, banners, refreshAllData } = useApp();
+  const { currentUser, categories, products, banners, refreshAllData, settings, setActivePage } = useApp();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'bank_accounts' | 'withdrawals' | 'categories' | 'settings' | 'vouchers' | 'products' | 'rajaongkir' | 'users' | 'banners' | 'security_compliance'>('overview');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('admin_sidebar_collapsed') === 'true';
+  });
+  const [sidebarSearch, setSidebarSearch] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('admin_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
   const [rajaongkirStatus, setRajaongkirStatus] = useState<any>(null);
   const [loadingRajaongkir, setLoadingRajaongkir] = useState(false);
   const [triggerDiagnosticCount, setTriggerDiagnosticCount] = useState(0);
@@ -75,6 +85,9 @@ export default function DashboardAdmin() {
   const [bannerTitle, setBannerTitle] = useState('');
   const [bannerImage, setBannerImage] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
+  const [bannerDescription, setBannerDescription] = useState('');
+  const [bannerTag, setBannerTag] = useState('');
+  const [bannerButtonText, setBannerButtonText] = useState('');
   const [isAddingBanner, setIsAddingBanner] = useState(false);
 
   // Voucher states
@@ -222,7 +235,10 @@ export default function DashboardAdmin() {
         body: JSON.stringify({
           title: bannerTitle,
           image: bannerImage,
-          url: bannerUrl
+          url: bannerUrl,
+          description: bannerDescription,
+          tag: bannerTag,
+          buttonText: bannerButtonText
         })
       });
       if (res.ok) {
@@ -230,6 +246,9 @@ export default function DashboardAdmin() {
         setBannerTitle('');
         setBannerImage('');
         setBannerUrl('');
+        setBannerDescription('');
+        setBannerTag('');
+        setBannerButtonText('');
         await refreshAllData(); // Refresh banners globally
         setTimeout(() => setActionFeedback(null), 3500);
       } else {
@@ -610,161 +629,484 @@ export default function DashboardAdmin() {
     }
   };
 
+  const tabsList: {
+    id: 'overview' | 'applications' | 'bank_accounts' | 'withdrawals' | 'categories' | 'settings' | 'vouchers' | 'products' | 'rajaongkir' | 'users' | 'banners' | 'security_compliance';
+    label: string;
+    icon: any;
+    count: number;
+  }[] = [
+    { id: 'overview', label: 'STATS OVERVIEW', icon: BarChart2, count: 0 },
+    { id: 'applications', label: 'APPLICATIONS', icon: Store, count: apps.filter(x => x.status === ApplicationStatus.PENDING).length },
+    { id: 'bank_accounts', label: 'SELLER BANKS', icon: Landmark, count: banks.filter(x => x.status === BankVerificationStatus.PENDING).length },
+    { id: 'withdrawals', label: 'SELLER CASHOUTS', icon: ArrowUpRight, count: withdraws.filter(x => x.status === WithdrawalStatus.PENDING).length },
+    { id: 'categories', label: 'CATEGORY BUILDER', icon: Layers, count: 0 },
+    { id: 'vouchers', label: 'VOUCHERS', icon: Percent, count: adminVouchers.length },
+    { id: 'products', label: 'CURATE PRODUCTS', icon: ShieldAlert, count: products ? products.filter(x => x.isApproved === false || x.approvalStatus === 'PENDING').length : 0 },
+    { id: 'users', label: 'MANAGE USERS', icon: Users, count: usersList.length },
+    { id: 'banners', label: 'CAROUSEL BANNERS', icon: ImageIcon, count: banners ? banners.length : 0 },
+    { id: 'security_compliance', label: 'KEAMANAN & DIAGNOSTIK', icon: Activity, count: securityLogsList.length },
+  ];
+
+  if (currentUser?.role === Role.SUPER_ADMIN) {
+    tabsList.push(
+      { id: 'settings', label: 'COMMISSION FEES', icon: SettingsIcon, count: 0 },
+      { id: 'rajaongkir', label: 'RAJAONGKIR API', icon: Store, count: 0 }
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" id="admin-workspace-page">
+    <div className="flex h-screen w-full overflow-hidden bg-[#f8fafc] text-slate-800 font-sans" id="admin-workspace-page">
       
-      {/* Title & Banner identity block */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-4 border-black pb-6 mb-8">
-        <div>
-          <span className="font-mono text-xs bg-red-800 text-[#f4f2e9] px-2.5 py-0.5 uppercase select-none inline-block">
-            {currentUser?.role === Role.SUPER_ADMIN ? '★ SUPER ADMIN MODE' : '• PEGAWAI MODERATOR'}
-          </span>
-          <h1 className="font-serif text-3.5xl font-extrabold uppercase mt-1 tracking-tight">PLATFORM MANAGEMENT</h1>
-          <p className="font-mono text-[10px] text-gray-500 mt-1">
-            CONTROL CENTER FOR APPS, TRANSACTIONS, CASH FLOWS, COMMISSIONS, AND COMPLAINTS VERIFICATION
-          </p>
-        </div>
+      {/* Mobile Sidenav Overlay */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Sidebar drawer */}
+          <div className="relative flex flex-col w-64 bg-emerald-950 text-white shadow-xl h-full z-50 p-4">
+            {/* Logo Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-emerald-800/40">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white p-1 rounded-md w-8 h-8 flex items-center justify-center border border-black shadow-inner">
+                  <img
+                    src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+                    alt="Toko Sipil Logo"
+                    className="w-5.5 h-5.5 object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="font-extrabold text-xs uppercase leading-tight text-white tracking-wider">
+                    {settings?.appName || "TOKO SIPIL"}
+                  </p>
+                  <p className="text-[8px] text-emerald-400 uppercase font-semibold tracking-widest">ADMIN PORTAL</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded-md hover:bg-emerald-900 text-emerald-300"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
 
-        {/* Short info */}
-        <div className="bg-[#111] text-[#f4f2e9] p-3 text-xs font-mono font-bold maternal-shadow-sm flex items-center gap-1.5 self-start md:self-auto">
-          <ShieldCheck className="w-5 h-5 text-red-500" />
-          <span>SIGNED IN AS: {currentUser?.name}</span>
-        </div>
-      </div>
+            {/* Search tab */}
+            <div className="relative mb-4">
+              <Search className="absolute left-2.5 top-2 w-3 h-3 text-emerald-400" />
+              <input
+                type="text"
+                placeholder="CARI TAB..."
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full pl-8 pr-2 py-1.5 bg-emerald-900/40 border border-emerald-800 text-emerald-100 placeholder-emerald-500 font-mono text-[9px] focus:outline-none uppercase rounded-md"
+              />
+            </div>
 
-      {actionFeedback && (
-        <div className="mb-6 bg-black text-[#f4f2e9] py-3.5 px-4 font-mono text-center text-xs font-bold border-2 border-black animate-bounce maternal-shadow">
-          Feedback: {actionFeedback}
+            {/* Nav List */}
+            <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+              {tabsList
+                .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                .map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  let activeClass = 'bg-emerald-800 text-white font-bold border-emerald-700 shadow-sm';
+                  let inactiveClass = 'text-emerald-100 hover:bg-white/5 hover:text-white border-transparent';
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-left font-mono border text-[11px] uppercase ${isActive ? activeClass : inactiveClass}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span className="flex-1 truncate tracking-wide">{tab.label}</span>
+                      {tab.count > 0 && (
+                        <span className="bg-red-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Footer of drawer */}
+            <div className="mt-auto pt-4 border-t border-emerald-800/40 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setActivePage('home');
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-white/5 text-emerald-300 hover:text-white font-mono text-[11px] uppercase"
+              >
+                <Home className="w-4 h-4" />
+                <span>KEMBALI KE TOKO</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Tabs list selectors brutalist */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 border-b border-gray-300 mb-8 font-mono text-xs scrollbar-none" id="admin-tabs">
-        <button 
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'overview' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <BarChart2 className="w-4 h-4" /> STATS OVERVIEW
-        </button>
-        <button 
-          onClick={() => setActiveTab('applications')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'applications' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Store className="w-4 h-4" /> APPLICATIONS ({apps.filter(x => x.status === ApplicationStatus.PENDING).length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('bank_accounts')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'bank_accounts' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Landmark className="w-4 h-4" /> SELLER BANKS ({banks.filter(x => x.status === BankVerificationStatus.PENDING).length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('withdrawals')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'withdrawals' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <ArrowUpRight className="w-4 h-4" /> SELLER CASHOUTS ({withdraws.filter(x => x.status === WithdrawalStatus.PENDING).length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('categories')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'categories' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Layers className="w-4 h-4" /> CATEGORY BUILDER
-        </button>
-        <button 
-          onClick={() => setActiveTab('vouchers')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'vouchers' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Percent className="w-4 h-4" /> VOUCHERS ({adminVouchers.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('products')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'products' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <ShieldAlert className="w-4 h-4" /> CURATE PRODUCTS ({products ? products.filter(x => x.isApproved === false || x.approvalStatus === 'PENDING').length : 0})
-        </button>
-        <button 
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'users' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Users className="w-4 h-4" /> MANAGE USERS ({usersList.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('banners')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'banners' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <ImageIcon className="w-4 h-4" /> CAROUSEL BANNERS ({banners ? banners.length : 0})
-        </button>
-        <button 
-          onClick={() => setActiveTab('security_compliance')}
-          className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'security_compliance' ? 'border-amber-450 bg-amber-450 text-black font-extrabold shadow-[2px_2px_0px_rgba(0,0,0,1)]' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Activity className="w-4 h-4 text-red-800 animate-pulse" /> KEAMANAN & DIAGNOSTIK ({securityLogsList.length})
-        </button>
-        {currentUser?.role === Role.SUPER_ADMIN && (
-          <>
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'settings' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              <SettingsIcon className="w-4 h-4" /> COMMISSION FEES
-            </button>
-            <button 
-              onClick={() => setActiveTab('rajaongkir')}
-              className={`flex items-center gap-1 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'rajaongkir' ? 'border-black bg-rose-900 text-white font-black shadow-[3px_3px_0px_rgba(0,0,0,1)]' : 'border-rose-400 bg-rose-50 hover:bg-rose-100 hover:border-rose-800 text-rose-950 font-bold'}`}
-            >
-              🚚 RAJAONGKIR API
-            </button>
-          </>
+      {/* Desktop Collapsible Left Sidebar (Vertical list - matching Toko Sipil Forest Green theme) */}
+      <aside 
+        className={`hidden lg:flex flex-col bg-emerald-950 border-r border-emerald-900/60 transition-all duration-300 flex-shrink-0 h-screen overflow-hidden ${
+          isSidebarCollapsed ? 'w-20' : 'w-64'
+        }`}
+        id="admin-desktop-sidebar"
+      >
+        {/* Logo Header */}
+        <div className={`flex items-center gap-3 p-4 border-b border-emerald-900 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className="bg-white p-1.5 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0 border border-black shadow-md">
+            <img
+              src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+              alt="Toko Sipil Logo"
+              className="w-7 h-7 object-contain"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="min-w-0 flex-1 text-left">
+              <p className="font-extrabold text-sm uppercase leading-tight text-white tracking-wider">
+                {String(settings?.appName || "TOKO SIPIL").toUpperCase()}
+              </p>
+              <p className="text-[8px] text-emerald-400 uppercase truncate font-semibold tracking-widest">
+                {currentUser?.role === Role.SUPER_ADMIN ? 'SUPER ADMIN' : 'STAFF MODERATOR'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation title label */}
+        {!isSidebarCollapsed && (
+          <span className="text-[10px] text-emerald-500 font-bold tracking-widest block uppercase px-5 mt-5 mb-2">
+            NAVIGATION
+          </span>
         )}
-      </div>
+
+        {/* Search Box inside Sidebar */}
+        <div className="px-4 mb-4 mt-2">
+          {isSidebarCollapsed ? (
+            <button
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="w-full flex justify-center py-2 bg-emerald-900/40 hover:bg-emerald-900/80 text-emerald-300 rounded-lg transition-colors cursor-pointer"
+              title="Search tabs"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-emerald-400" />
+              <input
+                type="text"
+                placeholder="CARI TAB..."
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-white placeholder-emerald-500 font-mono text-[10px] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase rounded-lg"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Filtered Tabs list */}
+        <div className="flex-1 flex flex-col gap-1 px-3 overflow-y-auto">
+          {tabsList
+            .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+            .map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              
+              let activeClass = 'bg-emerald-800 text-white font-bold border-emerald-700 shadow-sm';
+              let inactiveClass = 'text-emerald-100 hover:bg-white/5 hover:text-white border-transparent';
+              
+              if (tab.id === 'security_compliance' && isActive) {
+                activeClass = 'bg-amber-500 text-black font-extrabold border-amber-400';
+              } else if (tab.id === 'rajaongkir' && isActive) {
+                activeClass = 'bg-rose-950 text-rose-100 border-rose-800 font-black';
+              }
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group relative flex items-center transition duration-150 cursor-pointer text-left rounded-lg border ${
+                    isSidebarCollapsed ? 'justify-center p-3' : 'px-4 py-2.5 gap-3'
+                  } ${isActive ? activeClass : inactiveClass}`}
+                >
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${tab.id === 'security_compliance' && isActive ? 'text-red-950 animate-pulse' : ''}`} />
+                  {!isSidebarCollapsed && (
+                    <span className="flex-1 truncate text-xs uppercase font-medium tracking-wide">{tab.label}</span>
+                  )}
+                  {tab.count > 0 && (
+                    isSidebarCollapsed ? (
+                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                        {tab.count}
+                      </span>
+                    ) : (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isActive ? 'bg-white text-black' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}`}>
+                        {tab.count}
+                      </span>
+                    )
+                  )}
+
+                  {/* Floating tooltip on hover when sidebar collapsed */}
+                  {isSidebarCollapsed && (
+                    <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-emerald-950 text-white text-[10px] uppercase font-bold tracking-wider rounded-lg border border-emerald-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                      {tab.label} {tab.count > 0 && `(${tab.count})`}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Bottom utilities area */}
+        <div className="p-4 border-t border-emerald-900 flex flex-col gap-1.5">
+          <div className={`flex items-center gap-3 p-1.5 rounded-lg ${isSidebarCollapsed ? 'justify-center' : 'justify-between bg-emerald-950/40 border border-emerald-900/40'}`}>
+            {!isSidebarCollapsed && (
+              <span className="text-[8px] text-emerald-400 uppercase font-bold tracking-wider">LIGHT THEME</span>
+            )}
+            <div 
+              onClick={() => alert("Tema disinkronkan secara otomatis sesuai sistem!")}
+              className="relative w-8 h-4 bg-emerald-900/60 rounded-full cursor-pointer flex items-center px-0.5"
+            >
+              <div className="w-3 h-3 bg-emerald-100 rounded-full shadow-sm"></div>
+            </div>
+          </div>
+
+          {/* Collapse Menu Button at bottom matching picture */}
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`w-full group relative flex items-center transition duration-150 cursor-pointer text-left text-emerald-300 hover:bg-white/5 hover:text-white py-2 rounded-lg ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 gap-3'
+            }`}
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 flex-shrink-0" /> : <ChevronLeft className="w-4 h-4 flex-shrink-0" />}
+            {!isSidebarCollapsed && (
+              <span className="text-xs uppercase font-bold tracking-wide">COLLAPSE MENU</span>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Right Column: Main Area */}
+      <div className="flex flex-col flex-1 h-screen overflow-hidden">
+        
+        {/* Top Navbar */}
+        <header className="flex items-center justify-between h-16 px-6 bg-white border-b border-gray-200/80 shadow-sm z-10 flex-shrink-0">
+          {/* Left: Hamburger & Page Title */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(!isMobileMenuOpen);
+                if (window.innerWidth >= 1024) {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-slate-600 focus:outline-none cursor-pointer transition-colors"
+              title="Toggle Sidebar"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Mobile Logo Indicator */}
+            <div className="flex items-center gap-2 lg:hidden">
+              <img
+                src={settings?.appLogo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+                alt="Toko Sipil Logo"
+                className="w-6 h-6 object-contain"
+                referrerPolicy="no-referrer"
+              />
+              <span className="font-serif font-black text-xs uppercase tracking-tight text-emerald-950">
+                {settings?.appName || "TOKO SIPIL"}
+              </span>
+            </div>
+
+            {/* Desktop Breadcrumbs */}
+            <div className="hidden lg:flex items-center gap-2 text-[11px] font-sans font-bold tracking-wider">
+              <span className="text-slate-400">PORTAL ADMIN</span>
+              <ChevronRight className="w-3 h-3 text-slate-400" />
+              <span className="text-emerald-900 uppercase">
+                {tabsList.find(t => t.id === activeTab)?.label || activeTab}
+              </span>
+            </div>
+          </div>
+
+          {/* Center Search Bar */}
+          <div className="hidden md:flex items-center max-w-sm w-full mx-6">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari transaksi, toko, pengguna, barang..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 transition-all rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* Right Action Icons & User Menu */}
+          <div className="flex items-center gap-2.5">
+            
+            {/* Inbox messages */}
+            <button 
+              onClick={() => alert("Pesan koordinasi admin berjalan lancar!")}
+              className="relative w-9 h-9 rounded-xl border border-slate-250/60 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800 text-slate-500 cursor-pointer transition-all flex items-center justify-center group"
+              title="Pesan Masuk"
+            >
+              <MessageSquare className="w-4 h-4 transition-transform group-hover:scale-105" />
+              <span className="absolute top-2 right-2 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </button>
+
+            {/* Notifications */}
+            <button 
+              onClick={() => alert("Seluruh sistem transaksi terpantau aman dan stabil.")}
+              className="relative w-9 h-9 rounded-xl border border-slate-250/60 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-800 text-slate-500 cursor-pointer transition-all flex items-center justify-center group"
+              title="Notifikasi"
+            >
+              <Bell className="w-4 h-4 transition-transform group-hover:scale-105" />
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-sans font-black leading-none rounded-full w-4.5 h-4.5 flex items-center justify-center border-2 border-white shadow-sm">3</span>
+            </button>
+
+            {/* Divider */}
+            <span className="w-px h-5 bg-slate-200 mx-1"></span>
+
+            {/* User Profile */}
+            <div className="flex items-center gap-2.5 pl-1 group cursor-pointer relative py-1">
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop'}
+                alt="Admin Avatar"
+                className="w-7.5 h-7.5 rounded-full border border-emerald-800/10 object-cover"
+                referrerPolicy="no-referrer"
+              />
+              <div className="hidden sm:block text-left font-sans leading-none">
+                <p className="font-bold text-[11px] text-slate-800 uppercase tracking-wide">{currentUser?.name || 'ADMIN'}</p>
+                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                  {currentUser?.role === Role.SUPER_ADMIN ? 'SUPER' : 'STAFF'}
+                </p>
+              </div>
+
+              {/* Hover Dropdown Option */}
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200/80 shadow-lg rounded-xl p-2.5 invisible group-hover:visible transition-all duration-150 z-50 text-left font-sans space-y-1">
+                <p className="text-[10px] text-slate-400 font-bold uppercase px-2 mb-1">Signed in as</p>
+                <p className="text-[11px] font-bold text-slate-800 px-2 truncate leading-tight">{currentUser?.email}</p>
+                <div className="h-px bg-slate-100 my-1.5" />
+                
+                <button 
+                  onClick={() => setActivePage('home')}
+                  className="w-full text-left text-[11px] font-semibold text-emerald-800 hover:bg-emerald-50 rounded-md flex items-center gap-2 px-2 py-1.5 transition-colors"
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span>KEMBALI KE TOKO</span>
+                </button>
+                
+                <button 
+                  onClick={() => alert("Keamanan akun admin terenkripsi end-to-end.")}
+                  className="w-full text-left text-[11px] font-semibold text-slate-600 hover:bg-slate-50 rounded-md flex items-center gap-2 px-2 py-1.5 transition-colors"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>PENGATURAN AKUN</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Back Button */}
+            <button
+              onClick={() => setActivePage('home')}
+              className="ml-2 px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-white rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Storefront"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">STOREFRONT</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Content Workspace Area */}
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 pb-28 lg:pb-8 bg-slate-50">
+          
+          {/* Action Feedback Banner */}
+          {actionFeedback && (
+            <div className="mb-6 bg-emerald-900 border border-emerald-800 text-emerald-100 py-3 px-4 font-sans text-xs font-bold rounded-xl shadow-sm flex items-center justify-between">
+              <span>Notifikasi Sistem: {actionFeedback}</span>
+              <button onClick={() => refreshAllData()} className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 hover:bg-emerald-700 text-white px-2 py-1 rounded transition-colors">
+                REFRESH
+              </button>
+            </div>
+          )}
+
+          {/* Quick Stats Header info widget specifically styled like admin panel */}
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+            <div>
+              <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                {currentUser?.role === Role.SUPER_ADMIN ? 'SUPER ADM SYSTEM' : 'STAFF MODERATOR'}
+              </span>
+              <h1 className="font-sans text-2xl font-black text-slate-900 uppercase tracking-tight mt-1">PLATFORM MANAGEMENT</h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">
+                Pusat kendali komisi, toko, saldo penarikan, voucher, dan penanganan laporan
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white px-3.5 py-2 border border-slate-200/80 rounded-xl shadow-sm text-xs font-bold text-slate-700">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 animate-pulse" />
+              <span className="uppercase tracking-wide">Status Sesi: Terotorisasi</span>
+            </div>
+          </div>
 
       {activeTab === 'overview' && (
         <div className="space-y-6" id="overview-pane">
           {/* Metrics Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="overview-metrics">
-            <div className="bg-white border-2 border-black p-4 maternal-shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between">
               <div>
-                <span className="font-mono text-[10px] text-gray-400 font-bold block uppercase mb-1">TOTAL USER AKTIF</span>
-                <span className="font-serif text-3xl font-black block text-black">{stats.totalUsers || 0}</span>
+                <span className="text-[9.5px] text-slate-400 font-extrabold tracking-wider block uppercase mb-1">TOTAL USER AKTIF</span>
+                <span className="font-serif text-3.5xl font-black block text-slate-900">{stats.totalUsers || 0}</span>
               </div>
-              <div className="flex items-center justify-between text-gray-400 mt-2 font-mono text-[9px] uppercase border-t pt-1">
-                <span>TERMASUK VENDOR</span>
-                <Users className="w-4 h-4 text-black" />
+              <div className="flex items-center justify-between text-slate-400 mt-4 text-[9.5px] uppercase border-t border-slate-100 pt-2">
+                <span className="font-semibold tracking-wider">TERMASUK VENDOR</span>
+                <Users className="w-4 h-4 text-slate-600" />
               </div>
             </div>
 
-            <div className="bg-white border-2 border-black p-4 maternal-shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between">
               <div>
-                <span className="font-mono text-[10px] text-gray-400 font-bold block uppercase mb-1">TOKO HMTS TERVERIFIKASI</span>
-                <span className="font-serif text-3xl font-black block text-teal-800">{stats.totalSellers || 0}</span>
+                <span className="text-[9.5px] text-slate-400 font-extrabold tracking-wider block uppercase mb-1">TOKO HMTS TERVERIFIKASI</span>
+                <span className="font-serif text-3.5xl font-black block text-emerald-700">{stats.totalSellers || 0}</span>
               </div>
-              <div className="flex items-center justify-between text-gray-400 mt-2 font-mono text-[9px] uppercase border-t pt-1">
-                <span>TENANT EKOKRAF</span>
-                <Store className="w-4 h-4 text-teal-800" />
+              <div className="flex items-center justify-between text-slate-400 mt-4 text-[9.5px] uppercase border-t border-slate-100 pt-2">
+                <span className="font-semibold tracking-wider">TENANT EKOKRAF</span>
+                <Store className="w-4 h-4 text-emerald-600" />
               </div>
             </div>
 
-            <div className="bg-white border-2 border-black p-4 maternal-shadow-sm flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between">
               <div>
-                <span className="font-mono text-[10px] text-gray-400 font-bold block uppercase mb-1">PRODUK YANG TAYANG</span>
-                <span className="font-serif text-3xl font-black block text-blue-900">{stats.totalProducts || 0}</span>
+                <span className="text-[9.5px] text-slate-400 font-extrabold tracking-wider block uppercase mb-1">PRODUK YANG TAYANG</span>
+                <span className="font-serif text-3.5xl font-black block text-indigo-700">{stats.totalProducts || 0}</span>
               </div>
-              <div className="flex items-center justify-between text-gray-400 mt-2 font-mono text-[9px] uppercase border-t pt-1">
-                <span>KATALOG DISIPLIN</span>
-                <ShoppingCart className="w-4 h-4 text-blue-900" />
+              <div className="flex items-center justify-between text-slate-400 mt-4 text-[9.5px] uppercase border-t border-slate-100 pt-2">
+                <span className="font-semibold tracking-wider">KATALOG DISIPLIN</span>
+                <ShoppingCart className="w-4 h-4 text-indigo-600" />
               </div>
             </div>
 
-            <div className="bg-black text-[#f4f2e9] border-2 border-black p-4 maternal-shadow-sm flex flex-col justify-between">
+            <div className="bg-slate-900 border border-slate-850 rounded-2xl shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between text-white">
               <div>
-                <span className="font-mono text-[10px] text-amber-400 font-bold block uppercase mb-1">PENDAPATAN KOMISI ADMIN</span>
-                <span className="font-mono text-xl font-extrabold block text-green-400">
+                <span className="text-[9.5px] text-slate-400 font-extrabold tracking-wider block uppercase mb-1">PENDAPATAN KOMISI ADMIN</span>
+                <span className="text-xl font-black block text-emerald-400">
                   Rp{(stats.platformEarning || 0).toLocaleString('id-ID')}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-amber-400 mt-2 font-mono text-[9px] uppercase border-t border-neutral-700 pt-1">
-                <span>KUTIPAN PLATFORM {stats.commissionPercent || 5}%</span>
-                <Percent className="w-4 h-4 text-green-400" />
+              <div className="flex items-center justify-between text-slate-400 mt-4 text-[9.5px] uppercase border-t border-slate-800 pt-2">
+                <span className="font-semibold tracking-wider">KUTIPAN PLATFORM {stats.commissionPercent || 5}%</span>
+                <Percent className="w-4 h-4 text-emerald-400 animate-pulse" />
               </div>
             </div>
           </div>
@@ -842,22 +1184,22 @@ export default function DashboardAdmin() {
           </div>
 
           {/* Graphical Analysis of the Platform */}
-          <div className="border-4 border-black bg-white maternal-shadow p-6 space-y-8 font-mono text-xs">
-            <div className="border-b-2 border-black pb-3">
-              <h3 className="font-serif text-xl font-black text-black uppercase flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-red-800" />
+          <div className="border border-slate-200/80 bg-white rounded-2xl shadow-sm p-6 space-y-8 font-mono text-xs">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="font-serif text-xl font-extrabold text-slate-900 uppercase flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-emerald-600" />
                 <span>GRAFIK ANALISA KINERJA & AKTIVITAS SISTEM</span>
               </h3>
-              <p className="text-[10px] text-gray-500 mt-1 uppercase">Peta data visual interaktif: penjualan, keuntungan admin, rasio role user, dan statistik tenant terbaik.</p>
+              <p className="text-[10px] text-slate-500 mt-1 uppercase">Peta data visual interaktif: penjualan, keuntungan admin, rasio role user, dan statistik tenant terbaik.</p>
             </div>
 
             {/* Grid Charts Rowland */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Chart 1: Revenue vs Admin Profit Trend */}
-              <div className="border border-black p-4 space-y-3">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-black">
-                    <TrendingUp className="w-4 h-4 text-green-600 animate-pulse" />
+              <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-slate-700">
+                    <TrendingUp className="w-4 h-4 text-emerald-600 animate-pulse" />
                     Trend Omset Toko & Untung Bersih Admin
                   </span>
                   <span className="text-[9px] text-gray-400">10 HARI TERAKHIR</span>
@@ -865,7 +1207,7 @@ export default function DashboardAdmin() {
                 
                 <div className="h-60 w-full text-[10px]">
                   {stats.trendData && stats.trendData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={240}>
                       <AreaChart data={stats.trendData} margin={{ top: 10, right: 10, left: -5, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
@@ -898,9 +1240,9 @@ export default function DashboardAdmin() {
               </div>
 
               {/* Chart 2: Order Statuses distribution */}
-              <div className="border border-black p-4 space-y-3">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-black">
+              <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-slate-700">
                     <BarChart3 className="w-4 h-4 text-orange-600" />
                     Distribusi Status Pesanan (Orders)
                   </span>
@@ -909,7 +1251,7 @@ export default function DashboardAdmin() {
 
                 <div className="h-60 w-full text-[10px]">
                   {stats.ordersByStatus && stats.ordersByStatus.some((o: any) => o.value > 0) ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={240}>
                       <BarChart data={stats.ordersByStatus} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="name" stroke="#6b7280" />
@@ -928,9 +1270,9 @@ export default function DashboardAdmin() {
               </div>
 
               {/* Chart 3: Role distribution */}
-              <div className="border border-black p-4 space-y-3">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-black">
+              <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-slate-700">
                     <PieIcon className="w-4 h-4 text-blue-600" />
                     Proporsi Klasifikasi Peran (Role) User
                   </span>
@@ -941,7 +1283,7 @@ export default function DashboardAdmin() {
                   {stats.roleDistribution && stats.roleDistribution.some((r: any) => r.value > 0) ? (
                     <>
                       <div className="w-full md:w-1/2 h-full text-[10px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height={240}>
                           <PieChart>
                             <Pie
                               data={stats.roleDistribution}
@@ -958,7 +1300,7 @@ export default function DashboardAdmin() {
                                 '#3b82f6', // Buyer Blue
                                 '#9333ea', // Pegawai Purple
                               ].map((color, index) => (
-                                <Cell key={`cell-${index}`} fill={color} stroke="#000" strokeWidth={1} />
+                                <Cell key={`cell-${index}`} fill={color} stroke="#fff" strokeWidth={2} />
                               ))}
                             </Pie>
                             <Tooltip contentStyle={{ background: '#111', border: 'none', color: '#fff' }} />
@@ -972,7 +1314,7 @@ export default function DashboardAdmin() {
                           const colors = ['#e52a2a', '#0d9488', '#3b82f6', '#9333ea'];
                           return (
                             <div key={idx} className="flex items-center gap-2 uppercase text-[9.5px]">
-                              <span className="w-3 h-3 border border-black shrink-0" style={{ backgroundColor: colors[idx] }} />
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colors[idx] }} />
                               <span className="font-bold text-gray-700">{item.name}:</span>
                               <span className="text-black font-extrabold">{item.value || 0} akun</span>
                             </div>
@@ -989,9 +1331,9 @@ export default function DashboardAdmin() {
               </div>
 
               {/* Chart 4: Leaderboard Top Stores */}
-              <div className="border border-black p-4 space-y-3">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-black">
+              <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                  <span className="font-bold uppercase text-[10px] flex items-center gap-1.5 text-slate-700">
                     <Store className="w-4 h-4 text-purple-600" />
                     Peringkat 5 Tenant Terbaik (Completed Sales)
                   </span>
@@ -1000,7 +1342,7 @@ export default function DashboardAdmin() {
 
                 <div className="h-60 w-full text-[10px]">
                   {stats.popularStores && stats.popularStores.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={240}>
                       <BarChart 
                         data={stats.popularStores} 
                         layout="vertical"
@@ -1403,11 +1745,11 @@ export default function DashboardAdmin() {
       {activeTab === 'rajaongkir' && (
         <div className="space-y-6" id="rajaongkir-integration-pane">
           {/* Header Description */}
-          <div className="bg-amber-50 border-2 border-black p-6 maternal-shadow">
-            <h3 className="font-serif text-xl font-black uppercase text-amber-950 flex items-center gap-2 mb-2">
+          <div className="bg-sky-55/70 border border-sky-100 p-6 rounded-2xl shadow-sm">
+            <h3 className="font-serif text-xl font-extrabold uppercase text-sky-950 flex items-center gap-2 mb-2">
               🚚 RajaOngkir API Integration Hub
             </h3>
-            <p className="font-mono text-xs text-amber-900 leading-relaxed">
+            <p className="font-sans text-xs text-sky-900 leading-relaxed">
               RajaOngkir adalah API penyedia data ongkos kirim terlengkap di Indonesia (JNE, POS, TIKI, J&T, Sicepat, dll). 
               Aplikasi Toko Sipil dilengkapi dengan <b>Hybrid Smart Engine</b>: jika API Key terpasang, sistem akan menghitung tarif asli secara realtime melintasi kota se-Indonesia. Jika kosong, sistem otomatis memakai <b>Simulator Cerdas</b> agar transaksi checkout tetap berjalan aman tanpa gangguan!
             </p>
@@ -1415,65 +1757,65 @@ export default function DashboardAdmin() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* status diagnostic block */}
-            <div className="lg:col-span-2 bg-white border-2 border-black p-6 maternal-shadow-sm font-mono text-xs space-y-4">
-              <h4 className="font-serif text-sm font-bold text-black uppercase border-b-2 border-dashed border-black pb-2 flex items-center justify-between">
+            <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm font-sans text-xs space-y-4">
+              <h4 className="font-sans text-sm font-bold text-slate-900 uppercase border-b border-dashed border-slate-200 pb-3 flex items-center justify-between">
                 <span>⚡ STATUS KONEKSI API REST</span>
-                <span className={`px-2 py-0.5 text-[9px] font-bold ${rajaongkirStatus?.active ? 'bg-green-700 text-white animate-pulse' : 'bg-red-700 text-[#f4f2e9]'}`}>
+                <span className={`px-2.5 py-1 text-[9px] font-black rounded-full ${rajaongkirStatus?.active ? 'bg-emerald-600 text-white animate-pulse' : 'bg-rose-600 text-white'}`}>
                   {rajaongkirStatus?.active ? 'TERHUBUNG (REAL API)' : 'SIMULATOR MODE'}
                 </span>
               </h4>
 
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 border border-slate-350">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-150">
                 <div>
-                  <span className="text-gray-400 text-[10px] uppercase font-bold block">Status Integrasi:</span>
-                  <span className="text-sm font-bold text-black">
+                  <span className="text-gray-400 text-[9px] uppercase font-extrabold block">Status Integrasi:</span>
+                  <span className="text-sm font-bold text-slate-800">
                     {rajaongkirStatus?.active ? '✅ RajaOngkir AKTIF' : '❌ API Key Kosong'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400 text-[10px] uppercase font-bold block">Masked API Key:</span>
-                  <span className="text-sm font-bold text-black select-all bg-gray-200 px-1.5 py-0.5 border border-gray-300">
+                  <span className="text-gray-400 text-[9px] uppercase font-extrabold block">Masked API Key:</span>
+                  <span className="text-sm font-mono font-bold text-slate-800 select-all bg-slate-200/60 px-1.5 py-0.5 rounded border border-slate-300">
                     {rajaongkirStatus?.maskedKey}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400 text-[10px] uppercase font-bold block">Origin Pengiriman:</span>
-                  <span className="text-sm font-bold text-black">
+                  <span className="text-gray-400 text-[9px] uppercase font-extrabold block">Origin Pengiriman:</span>
+                  <span className="text-sm font-bold text-slate-800">
                     {rajaongkirStatus?.originCity} (ID: {rajaongkirStatus?.originId})
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400 text-[10px] uppercase font-bold block">Hasil Test Ping Server:</span>
-                  <span className={`text-[11px] font-bold ${rajaongkirStatus?.connectionTest?.includes('SUKSES') ? 'text-green-700' : 'text-amber-800'}`}>
+                  <span className="text-gray-400 text-[9px] uppercase font-extrabold block">Hasil Test Ping Server:</span>
+                  <span className={`text-[11px] font-bold ${rajaongkirStatus?.connectionTest?.includes('SUKSES') ? 'text-emerald-700' : 'text-amber-800'}`}>
                     {rajaongkirStatus?.connectionTest}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setTriggerDiagnosticCount(prev => prev + 1)}
                   disabled={loadingRajaongkir}
-                  className="px-4 py-2 bg-black text-white hover:bg-neutral-800 transition font-bold uppercase text-[10px] rounded-none border border-black cursor-pointer"
+                  className="px-4 py-2.5 bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-950 transition font-sans font-extrabold uppercase text-[10px] rounded-lg tracking-wider cursor-pointer shadow-sm disabled:opacity-50"
                 >
                   {loadingRajaongkir ? '🔄 MEMROSES TEST...' : '🔍 JALANKAN DIAGNOSTIK KONEKSI'}
                 </button>
-                <span className="text-[9px] text-gray-500">
+                <span className="text-[10px] text-slate-400 font-sans">
                   Terakhir diperbarui: {new Date().toLocaleTimeString()}
                 </span>
               </div>
 
               {/* Sample Cities from RajaOngkir */}
               {rajaongkirStatus?.sampleCities && rajaongkirStatus.sampleCities.length > 0 && (
-                <div className="bg-slate-50 p-4 border border-slate-350 space-y-2 mt-4">
-                  <h5 className="font-bold text-[10px] uppercase text-gray-500">10 Kota Teratas RajaOngkir (Respon Sukses API):</h5>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5 font-mono text-[9px]">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 space-y-3 mt-4">
+                  <h5 className="font-bold text-[9.5px] uppercase text-slate-400 tracking-wider">10 Kota Teratas RajaOngkir (Respon Sukses API):</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 font-sans text-[9px]">
                     {rajaongkirStatus.sampleCities.map((c: any) => (
-                      <div key={c.id} className="bg-white p-1.5 border border-gray-300 text-center">
-                        <span className="font-bold text-blue-900 block">ID {c.id}</span>
-                        <span className="text-[10px] text-black font-extrabold truncate block uppercase">{c.name}</span>
-                        <span className="text-[8px] text-gray-400 uppercase">{c.type}</span>
+                      <div key={c.id} className="bg-white p-2 border border-slate-150 rounded-lg text-center shadow-xs">
+                        <span className="font-bold text-indigo-600 block">ID {c.id}</span>
+                        <span className="text-[10px] text-slate-800 font-extrabold truncate block uppercase mt-0.5">{c.name}</span>
+                        <span className="text-[8px] text-slate-400 uppercase mt-0.5 block">{c.type}</span>
                       </div>
                     ))}
                   </div>
@@ -2145,7 +2487,7 @@ export default function DashboardAdmin() {
               </tbody>
             </table>
           </div>
-          
+
           <div className="bg-yellow-50 border border-yellow-800 p-4 leading-normal flex items-start gap-2.5 text-[10px] text-amber-950">
             <ShieldAlert className="w-5 h-5 text-red-800 flex-shrink-0 animate-bounce mt-0.5" />
             <div className="space-y-1 uppercase">
@@ -2163,30 +2505,30 @@ export default function DashboardAdmin() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-xs font-mono animate-fade-in" id="banners-management-pane">
           {/* Create Banner Form */}
           <div className="bg-white border-2 border-black p-6 maternal-shadow-sm font-mono text-xs lg:col-span-1">
-            <h3 className="font-serif text-lg font-bold uppercase tracking-tight text-black mb-1 block">BUAT BANNER BARU</h3>
-            <span className="text-[10px] text-gray-400 block mb-4">GAMBAR AKAN MUNCUL DI CAROUSEL BERANDA</span>
+            <h3 className="font-serif text-lg font-bold uppercase tracking-tight text-black mb-1 block">UPLOAD BANNER BARU</h3>
+            <span className="text-[10px] text-gray-500 block mb-4 font-bold">SELURUH ISI BANNER ADALAH SEBUAH GAMBAR UTUH</span>
 
             <form onSubmit={handleAddBanner} className="space-y-4">
               <div className="space-y-1">
-                <label className="block text-gray-450 font-extrabold uppercase text-[10px]">JUDUL / DESKRIPSI BANNER *</label>
+                <label className="block text-gray-450 font-extrabold uppercase text-[10px]">NAMA BANNER (UNTUK ARSIP INTERNAL) *</label>
                 <input 
                   type="text" 
                   value={bannerTitle}
                   onChange={(e) => setBannerTitle(e.target.value)}
-                  placeholder="Contoh: Diskon Akbar Juni TokoSipil"
+                  placeholder="Contoh: Banner Utama Promo Juni"
                   required
                   className="w-full bg-slate-50 border-2 border-black p-2.5 font-bold focus:outline-none text-xs text-black"
                 />
               </div>
 
               <div className="space-y-1 bg-slate-50 border-2 border-dashed border-black p-3 rounded-none">
-                <label className="block text-gray-500 font-extrabold uppercase text-[10px] mb-2 font-mono">GAMBAR BANNER * (FOTO ATAU LINK URL)</label>
+                <label className="block text-gray-500 font-extrabold uppercase text-[10px] mb-2 font-mono">GAMBAR BANNER * (DIREKOMENDASIKAN ASPECT RATIO 21:9 atau 3:1)</label>
                 
                 <div className="space-y-3">
                   <div>
-                    <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1">PILIH DARI FILES / GALERI FOTO :</span>
-                    <label className="cursor-pointer bg-black hover:bg-neutral-800 text-white border border-black px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-widest inline-block transition text-center select-none">
-                      PILIH FOTO...
+                    <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1">PILIH FILE DARI PERANGKAT / GALERI FOTO :</span>
+                    <label className="cursor-pointer bg-black hover:bg-neutral-800 text-white border border-black px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-widest inline-block transition text-center select-none w-full">
+                      UPLOAD GAMBAR BANNER...
                       <input 
                         type="file" 
                         accept="image/*"
@@ -2194,7 +2536,7 @@ export default function DashboardAdmin() {
                           const file = e.target.files?.[0];
                           if (file) {
                             try {
-                              const compressed = await compressAndResizeImage(file, 1200, 600, 0.8);
+                              const compressed = await compressAndResizeImage(file, 1600, 600, 0.85);
                               setBannerImage(compressed);
                             } catch (err: any) {
                               console.error("Gagal memproses banner admin:", err);
@@ -2207,7 +2549,7 @@ export default function DashboardAdmin() {
                   </div>
 
                   <div className="relative">
-                    <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1 font-mono">ATAU INPUT LINK DIRECT URL GAMBAR :</span>
+                    <span className="block text-gray-400 font-bold uppercase text-[8px] mb-1 font-mono">ATAU MASUKKAN URL DIREK GAMBAR :</span>
                     <input 
                       type="text" 
                       value={bannerImage}
@@ -2221,7 +2563,7 @@ export default function DashboardAdmin() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-gray-455 font-extrabold uppercase text-[10px]">TAUTAN ACTION / REDIRECT URL</label>
+                <label className="block text-gray-455 font-extrabold uppercase text-[10px]">LINK TARGET JIKA DIKLIK (URL REDIRECT)</label>
                 <input 
                   type="text" 
                   value={bannerUrl}
@@ -2281,6 +2623,9 @@ export default function DashboardAdmin() {
                         />
                       </div>
                       <h4 className="font-bold text-black uppercase text-sm block tracking-tight line-clamp-1">{b.title}</h4>
+                      {b.tag && <p className="text-[10px] text-brand-forest font-bold uppercase mt-1">Tag: {b.tag}</p>}
+                      {b.description && <p className="text-[10px] text-gray-700 font-sans mt-1 line-clamp-2">Desc: {b.description}</p>}
+                      {b.buttonText && <p className="text-[10px] text-black font-semibold mt-1">Tombol: {b.buttonText}</p>}
                       <p className="text-[10px] text-gray-400 mt-1 truncate">ID: {b.id}</p>
                       <p className="text-[10px] text-gray-600 truncate">Link: {b.url || '#'}</p>
                     </div>
@@ -2469,6 +2814,8 @@ export default function DashboardAdmin() {
 
         </div>
       )}
+        </main>
+      </div>
     </div>
   );
 }

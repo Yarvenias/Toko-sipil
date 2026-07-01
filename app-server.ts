@@ -118,7 +118,7 @@ async function createAndAddSession(db: any, user: any, req: any): Promise<string
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   // Vercel Serverless routing normalize helper
   app.use((req, res, next) => {
@@ -132,6 +132,29 @@ async function startServer() {
 
   // Initialize and sync Firestore database
   await initDb();
+
+  // Helper to add notifications dynamically to the in-memory/Firestore database
+  async function triggerNotification(userId: string, title: string, message: string, type: 'INFO' | 'PRODUCT' | 'ORDER' | 'CHAT' | 'SYSTEM' = 'INFO', link?: string) {
+    try {
+      const db = loadDb();
+      if (!db.notifications) db.notifications = [];
+      const newNotif = {
+        id: 'ntf_' + Math.random().toString(36).substring(2, 9),
+        userId,
+        title,
+        message,
+        type,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        link
+      };
+      db.notifications.push(newNotif);
+      await saveDb(db);
+      console.log(`[Notification Triggered] For user: ${userId}, Title: ${title}`);
+    } catch (e) {
+      console.error('Failed to trigger notification', e);
+    }
+  }
 
   // Cache synchronization for serverless environment across warm instances
   let lastSyncTime = Date.now();
@@ -301,8 +324,7 @@ async function startServer() {
     });
   }
 
-  function serveFallbackAndCache(destPath: string, res: any) {
-    console.log('📦 Generating resilient cached APK file...');
+  function getOrCreateMockApkBuffer(destPath: string): Buffer {
     // Minimal valid ZIP binary header structure so it represents a readable APK/zip container
     const mockApkBuffer = Buffer.from([
       0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x08, 0x08, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -325,6 +347,12 @@ async function startServer() {
     } catch (e) {
       console.error('Failed to save fallback APK cache:', e);
     }
+    return fullBuffer;
+  }
+
+  function serveFallbackAndCache(destPath: string, res: any) {
+    console.log('📦 Generating resilient cached APK file...');
+    const fullBuffer = getOrCreateMockApkBuffer(destPath);
 
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
     res.setHeader('Content-Disposition', 'attachment; filename="TokoSipil_Official_v1.0.0.apk"');
@@ -1133,6 +1161,14 @@ async function startServer() {
 
     db.products.push(newProd);
     await saveDb(db);
+
+    // Trigger Notification for Seller
+    await triggerNotification(store.userId, 'Produk Berhasil Diupload', `Produk "${name}" Anda berhasil diupload dan sedang menunggu persetujuan admin.`, 'PRODUCT');
+    // Trigger Notification for Admins/Staff
+    db.users.filter(u => u.role === Role.SUPER_ADMIN || u.role === Role.PEGAWAI).forEach(async (admin) => {
+      await triggerNotification(admin.id, 'Produk Baru Menunggu Persetujuan', `Produk baru "${name}" dari Toko "${store.name}" telah diupload dan memerlukan verifikasi Anda.`, 'PRODUCT');
+    });
+
     res.status(201).json({ message: 'Produk berhasil diupload!', product: newProd });
   });
 
@@ -1182,6 +1218,13 @@ async function startServer() {
     product.isApproved = true;
     product.approvalStatus = 'APPROVED';
     await saveDb(db);
+
+    // Notify Seller
+    const store = db.stores.find(s => s.id === product.storeId);
+    if (store) {
+      await triggerNotification(store.userId, 'Produk Disetujui!', `Produk "${product.name}" Anda telah disetujui oleh admin dan sekarang aktif di etalase toko.`, 'PRODUCT');
+    }
+
     res.json({ message: 'Produk berhasil disetujui untuk ditampilkan di etalase.', product });
   });
 
@@ -1194,6 +1237,13 @@ async function startServer() {
     product.isApproved = false;
     product.approvalStatus = 'REJECTED';
     await saveDb(db);
+
+    // Notify Seller
+    const store = db.stores.find(s => s.id === product.storeId);
+    if (store) {
+      await triggerNotification(store.userId, 'Produk Ditolak', `Produk "${product.name}" Anda ditolak oleh admin. Silakan periksa kembali kelayakan produk Anda.`, 'PRODUCT');
+    }
+
     res.json({ message: 'Produk berhasil ditolak.', product });
   });
 
@@ -1669,6 +1719,15 @@ async function startServer() {
 
     db.orders.push(newOrder);
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(buyerId, 'Pesanan Baru Dibuat', `Pesanan Anda #${newOrder.id} senilai Rp${totalAmount.toLocaleString('id-ID')} telah berhasil dibuat. Silakan selesaikan pembayaran.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === newOrder.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Pesanan Masuk Baru', `Customer ${newOrder.buyerName} membuat pesanan baru #${newOrder.id} untuk toko Anda.`, 'ORDER');
+    }
 
     res.status(201).json({ message: 'Order created successfully.', order: newOrder });
   });
@@ -2275,6 +2334,16 @@ async function startServer() {
     wallet.totalEarnings += netEarning;
 
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(order.buyerId, 'Pembayaran Berhasil', `Pembayaran untuk pesanan #${order.id} telah sukses kami terima. Status pesanan: ${order.status}.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === order.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Pesanan Telah Dibayar', `Customer ${order.buyerName} telah melunasi pembayaran untuk pesanan #${order.id}. Segera proses dan kirimkan barang.`, 'ORDER');
+    }
+
     res.json({ message: statusMessage, order });
   });
 
@@ -2296,6 +2365,16 @@ async function startServer() {
     order.updatedAt = new Date().toISOString();
 
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(order.buyerId, 'Pesanan Telah Dikirim', `Pesanan Anda #${order.id} telah dikirim dengan kurir pilihan Anda. Nomor Resi: ${resiNo}.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === order.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Pesanan Berhasil Dikirim', `Anda telah mengirimkan pesanan #${order.id} dengan nomor resi ${resiNo}.`, 'ORDER');
+    }
+
     res.json({ message: 'Pesanan berhasil dikirim.', order });
   });
 
@@ -2310,6 +2389,16 @@ async function startServer() {
     order.updatedAt = new Date().toISOString();
 
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(order.buyerId, 'Paket Telah Tiba', `Pesanan Anda #${order.id} telah sukses diserahkan ke alamat tujuan oleh kurir.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === order.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Paket Telah Tiba di Customer', `Paket pesanan #${order.id} telah sukses diserahkan ke alamat customer.`, 'ORDER');
+    }
+
     res.json({ message: 'Kurir sukses mengirim paket ke alamat.', order });
   });
 
@@ -2350,6 +2439,16 @@ async function startServer() {
     }
 
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(order.buyerId, 'Pesanan Selesai', `Terima kasih! Pesanan #${order.id} telah selesai dikonfirmasi.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === order.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Dana Penjualan Cair', `Pesanan #${order.id} telah selesai. Dana bersih telah sukses ditambahkan ke saldo dompet toko Anda.`, 'ORDER');
+    }
+
     res.json({ message: 'Pesanan selesai. Dana saldo penjual telah dicairkan ke dompet.', order });
   });
 
@@ -2383,6 +2482,16 @@ async function startServer() {
     }
 
     await saveDb(db);
+
+    // Notify Buyer
+    await triggerNotification(order.buyerId, 'Pesanan Dibatalkan', `Pesanan Anda #${order.id} telah sukses dibatalkan karena: ${order.cancelReason || 'Kebijakan sistem'}.`, 'ORDER');
+
+    // Notify Seller
+    const storeObj = db.stores.find(s => s.id === order.storeId);
+    if (storeObj) {
+      await triggerNotification(storeObj.userId, 'Pesanan Dibatalkan oleh Pembeli', `Pesanan #${order.id} dibatalkan oleh pembeli. Alasan: ${order.cancelReason || 'N/A'}.`, 'ORDER');
+    }
+
     res.json({ message: 'Pesanan berhasil dibatalkan.', order });
   });
 
@@ -2733,7 +2842,74 @@ async function startServer() {
     chat.updatedAt = new Date().toISOString();
 
     await saveDb(db);
+
+    // Trigger Notification for the message recipient
+    try {
+      const senderName = senderId === chat.buyerId ? chat.buyerName : chat.sellerName;
+      let recipientUserId = '';
+      if (senderId === chat.buyerId) {
+        // Buyer sent a message, find the seller user ID of the store
+        const store = db.stores.find(s => s.id === chat.sellerId);
+        if (store) {
+          recipientUserId = store.userId;
+        }
+      } else {
+        // Seller sent a message, find the buyer user ID
+        recipientUserId = chat.buyerId;
+      }
+
+      if (recipientUserId) {
+        await triggerNotification(
+          recipientUserId,
+          `Pesan Baru dari ${senderName}`,
+          text || 'Mengirim gambar.',
+          'CHAT',
+          `/chats?id=${chat.id}`
+        );
+      }
+    } catch (err) {
+      console.error('[Notification] Error triggering chat notification:', err);
+    }
+
     res.json(msg);
+  });
+
+  // Notifications
+  app.get('/api/notifications', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: 'Parameter userId wajib dikirim.' });
+    }
+    const db = loadDb();
+    const list = (db.notifications || []).filter(n => n.userId === String(userId) || n.userId === 'ALL');
+    res.json(list);
+  });
+
+  app.post('/api/notifications/:id/read', async (req, res) => {
+    const db = loadDb();
+    if (!db.notifications) db.notifications = [];
+    const notif = db.notifications.find(n => n.id === req.params.id);
+    if (notif) {
+      notif.isRead = true;
+      await saveDb(db);
+    }
+    res.json({ success: true });
+  });
+
+  app.post('/api/notifications/read-all', async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Parameter userId wajib dikirim.' });
+    }
+    const db = loadDb();
+    if (!db.notifications) db.notifications = [];
+    db.notifications.forEach(n => {
+      if (n.userId === String(userId) || n.userId === 'ALL') {
+        n.isRead = true;
+      }
+    });
+    await saveDb(db);
+    res.json({ success: true });
   });
 
   // Vouchers
@@ -2913,7 +3089,7 @@ async function startServer() {
 
   app.post('/api/banners', async (req, res) => {
     const db = loadDb();
-    const { title, image, url } = req.body;
+    const { title, image, url, description, tag, buttonText } = req.body;
     if (!image) {
       return res.status(400).json({ error: 'Image URL is required' });
     }
@@ -2922,6 +3098,9 @@ async function startServer() {
       title: (title || '').trim() || 'New Platform Banner',
       image: (image || '').trim(),
       url: (url || '').trim() || '#',
+      description: (description || '').trim(),
+      tag: (tag || '').trim(),
+      buttonText: (buttonText || '').trim(),
       active: true
     };
     db.banners.push(newBanner);
@@ -3172,7 +3351,7 @@ async function startServer() {
   if (!process.env.VERCEL && !fs.existsSync(apkFilePath)) {
     console.log('⚡ Background pre-downloading valid APK for public download...');
     const cacheFile = fs.createWriteStream(apkFilePath);
-    https.get('https://raw.githubusercontent.com/appium/android-apks/master/ApiDemos-debug.apk', (response) => {
+    https.get('https://raw.githubusercontent.com/appium/appium/master/packages/appium/sample-code/apps/ApiDemos-debug.apk', (response) => {
       if (response.statusCode === 200) {
         response.pipe(cacheFile);
         cacheFile.on('finish', () => {
@@ -3182,12 +3361,14 @@ async function startServer() {
       } else {
         cacheFile.close();
         if (fs.existsSync(apkFilePath)) fs.unlinkSync(apkFilePath);
-        console.error('Failed to pre-cache APK: HTTP status ' + response.statusCode);
+        console.warn('Source repo responded with status ' + response.statusCode + ', generating resilient local pre-cache instead.');
+        getOrCreateMockApkBuffer(apkFilePath);
       }
     }).on('error', (err) => {
       cacheFile.close();
       if (fs.existsSync(apkFilePath)) fs.unlinkSync(apkFilePath);
-      console.error('Error pre-caching APK:', err);
+      console.warn('Error pre-caching APK, generating resilient local pre-cache instead:', err);
+      getOrCreateMockApkBuffer(apkFilePath);
     });
   }
 

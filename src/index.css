@@ -1,22 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700;800&family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-genz: "Plus Jakarta Sans", sans-serif;
+  --font-space: "Plus Jakarta Sans", sans-serif;
   
-  --color-brand-cream: #f4f2e9;
-  --color-brand-ivory: #fcfbf7;
-  --color-brand-obsidian: #111111;
-  --color-brand-charcoal: #222222;
-  --color-brand-crimson: #991b1b;
+  --color-brand-cream: #FAF6EB;
+  --color-brand-ivory: #FDFBF7;
+  --color-brand-sage: #DDDCA9;
+  --color-brand-forest: #2F6A31;
+  --color-brand-pine: #0F4213;
+  --color-brand-obsidian: #0B300E;
+  --color-brand-charcoal: #182C1B;
+  --color-brand-crimson: #2F6A31;
 }
 
 body {
   background-color: var(--color-brand-cream);
   color: var(--color-brand-obsidian);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom raw aesthetic scrollbars */
@@ -50,9 +57,9 @@ body {
 .maternal-btn {
   background-color: var(--color-brand-obsidian);
   color: var(--color-brand-cream);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 700;
   padding: 0.5rem 1rem;
   border: 2px solid var(--color-brand-obsidian);
   transition: all 0.2s ease-in-out;
@@ -67,9 +74,9 @@ body {
 .maternal-btn-outline {
   background-color: transparent;
   color: var(--color-brand-obsidian);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 700;
   padding: 0.5rem 1rem;
   border: 2px solid var(--color-brand-obsidian);
   transition: all 0.2s ease-in-out;
@@ -79,6 +86,10 @@ body {
 .maternal-btn-outline:hover {
   background-color: var(--color-brand-obsidian);
   color: var(--color-brand-cream);
+}
+
+.font-real-mono {
+  font-family: 'JetBrains Mono', monospace !important;
 }
 
 @media print {

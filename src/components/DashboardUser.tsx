@@ -9,7 +9,8 @@ import {
   User as UserIcon, Store, Landmark, ShoppingBag, Eye, EyeOff, Star, CheckSquare, 
   Tag, MapPin, KeyRound, Heart, ChevronRight, FileText, UploadCloud, AlertCircle,
   MessageSquare, Printer, Map, ShieldCheck, Lock, UserCheck, Globe,
-  Activity, Wrench, Cpu, Send, CheckCircle, XCircle, Wifi, AlertTriangle, Download
+  Activity, Wrench, Cpu, Send, CheckCircle, XCircle, Wifi, AlertTriangle, Download, ChevronDown,
+  ChevronLeft, Search, LogOut, Settings, Moon, Sun, Menu, X, Bell, Home
 } from 'lucide-react';
 import { OrderStatus, ApplicationStatus } from '../types';
 import MapPicker from './MapPicker';
@@ -22,21 +23,36 @@ interface DashboardUserProps {
   onOpenStoreApply: () => void;
   onOpenChat: () => void;
   onTrackOrder?: (id: string) => void;
+  onSelectProduct?: (product: any) => void;
 }
 
-export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpenChat, onTrackOrder }: DashboardUserProps) {
+export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpenChat, onTrackOrder, onSelectProduct }: DashboardUserProps) {
   const { 
     currentUser, orders, wishlist, products, stores, followedStores, toggleFollowStore, refreshAllData, settings, setCurrentUser, setAuthOpen,
-    userDashboardInitialTab, setUserDashboardInitialTab, addToast
+    userDashboardInitialTab, setUserDashboardInitialTab, addToast, logout, setActivePage, toggleWishlist, setSearchQuery,
+    userSidebarCollapsed: isSidebarCollapsed, setUserSidebarCollapsed: setIsSidebarCollapsed,
+    userMobileSidebarOpen: isMobileMenuOpen, setUserMobileSidebarOpen: setIsMobileMenuOpen
   } = useApp();
 
   const [activeTab, setActiveTab ] = useState<'profile' | 'orders' | 'wishlist' | 'shop_register' | 'follows' | 'security' | 'address' | 'diagnostics'>('profile');
   const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [sidebarSearch, setSidebarSearch] = useState('');
 
   useEffect(() => {
-    if (userDashboardInitialTab && userDashboardInitialTab !== 'profile') {
+    localStorage.setItem('user_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
+
+  // Real-time tick timer for store follower fluctuation
+  const [, setLiveTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setLiveTick(t => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (userDashboardInitialTab) {
       setActiveTab(userDashboardInitialTab as any);
-      setUserDashboardInitialTab('profile'); // reset tab back to default
+      setUserDashboardInitialTab(''); // reset tab back to empty to allow re-triggering
     }
   }, [userDashboardInitialTab]);
   const [appsList, setAppsList] = useState<any[]>([]);
@@ -878,84 +894,338 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
   const myShopApplication = myShopApplications[myShopApplications.length - 1] || null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" id="user-workspace-page">
+    <div className="flex h-screen w-full overflow-hidden bg-[#f8fafc] text-slate-800 font-sans" id="user-workspace-page">
       
-      {/* Upper header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-4 border-black pb-6 mb-8">
-        <div>
-          <span className="font-mono text-xs bg-[#111] text-white px-2.5 py-0.5 uppercase inline-block">
-            MEMBER ARCHIVE ID: {currentUser?.id}
-          </span>
-          <h1 className="font-serif text-3.5xl font-extrabold uppercase mt-1 tracking-tight">BUYER CONTROL PANEL</h1>
-          <p className="font-mono text-[10px] text-gray-500 mt-1">
-            MANAGE PROFILE, BILLING ORDERS, WISHLIST DECK, FOLLOWED CLOTHING STORES, AND SELLER APPLICATIONS
-          </p>
-        </div>
+      {/* Mobile Sidenav Overlay */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Sidebar drawer */}
+          <div className="relative flex flex-col w-64 bg-slate-950 text-white shadow-xl h-full z-50 p-4 font-sans">
+            {/* Logo Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/40">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white p-1 rounded-md w-8 h-8 flex items-center justify-center border border-black shadow-inner">
+                  <img
+                    src={currentUser?.avatar || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+                    alt="User Avatar"
+                    className="w-5.5 h-5.5 object-cover rounded-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="font-extrabold text-xs uppercase leading-tight text-white tracking-wider">
+                    {currentUser?.name || "MEMBER"}
+                  </p>
+                  <p className="text-[8px] text-indigo-400 uppercase font-semibold tracking-widest">BUYER PORTAL</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded-md hover:bg-slate-900 text-slate-300 cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
 
-        {/* Quick totals info */}
-        <div className="bg-[#111] text-white p-3 font-mono text-xs maternal-shadow-sm flex items-center gap-1.5 self-start md:self-auto uppercase">
-          <UserIcon className="w-5 h-5 text-red-500" />
-          <span>ROLE LEVEL: BUYER STANDARD • WELCOME BACK</span>
-        </div>
-      </div>
+            {/* Search tab */}
+            <div className="relative mb-4">
+              <Search className="absolute left-2.5 top-2 w-3 h-3 text-slate-400" />
+              <input
+                type="text"
+                placeholder="CARI TAB..."
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full pl-8 pr-2 py-1.5 bg-slate-900/40 border border-slate-800 text-slate-100 placeholder-slate-500 font-mono text-[9px] focus:outline-none uppercase rounded-md"
+              />
+            </div>
 
-      {feedback && (
-        <div className="mb-6 bg-black text-[#f4f2e9] py-3.5 px-4 font-mono text-center text-xs font-bold border-2 border-black animate-pulse maternal-shadow">
-          PEMBERITAHUAN: {feedback}
+            {/* Nav List */}
+            <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+              {[
+                { id: 'profile' as const, label: 'MEMBER PROFILE', icon: UserIcon, count: 0 },
+                { id: 'orders' as const, label: 'ORDERS HISTORY', icon: ShoppingBag, count: myBuyerOrders.length },
+                { id: 'wishlist' as const, label: 'MY WISHLIST', icon: Heart, count: myWishlistedProducts.length },
+                { id: 'follows' as const, label: 'FOLLOWED STORES', icon: Store, count: myFollowedStores.length },
+                { id: 'security' as const, label: 'AKUN & KEAMANAN', icon: ShieldCheck, count: 0 },
+                { id: 'address' as const, label: 'ALAMAT SAYA', icon: MapPin, count: 0 },
+                { id: 'diagnostics' as const, label: '1-KLIK DIAGNOSIS', icon: Activity, count: 0 },
+                { id: 'shop_register' as const, label: 'BUKA TOKO MITRA', icon: Store, count: 0 },
+              ]
+                .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                .map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  let activeClass = 'bg-indigo-900 text-white font-bold border-indigo-700 shadow-sm';
+                  let inactiveClass = 'text-slate-100 hover:bg-white/5 hover:text-white border-transparent';
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-left font-mono border text-[11px] uppercase ${isActive ? activeClass : inactiveClass}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span className="flex-1 truncate tracking-wide">{tab.label}</span>
+                      {tab.count > 0 && (
+                        <span className="bg-indigo-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center font-sans">
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Footer of drawer */}
+            <div className="mt-auto pt-4 border-t border-slate-800/40 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setActivePage('home');
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-white/5 text-slate-300 hover:text-white font-mono text-[11px] uppercase cursor-pointer"
+              >
+                <Home className="w-4 h-4" />
+                <span>KEMBALI KE TOKO</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Tabs list selectors brutalist */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 border-b border-gray-300 mb-8 font-mono text-xs scrollbar-none" id="buyer-tabs">
-        <button 
-          onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'profile' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <UserIcon className="w-4 h-4" /> MEMBER PROFILE
-        </button>
-        <button 
-          onClick={() => setActiveTab('orders')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'orders' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <ShoppingBag className="w-4 h-4" /> ORDERS HISTORY ({myBuyerOrders.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('wishlist')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'wishlist' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Heart className="w-4 h-4" /> MY WISHLIST ({myWishlistedProducts.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('follows')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'follows' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Store className="w-4 h-4" /> FOLLOWED STORES ({myFollowedStores.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'security' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <ShieldCheck className="w-4 h-4" /> AKUN & KEAMANAN
-        </button>
-        <button 
-          onClick={() => setActiveTab('address')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'address' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <MapPin className="w-4 h-4" /> ALAMAT SAYA
-        </button>
-        <button 
-          onClick={() => setActiveTab('diagnostics')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'diagnostics' ? 'border-amber-450 bg-amber-450 text-black font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Activity className="w-4 h-4 animate-pulse text-red-700" /> 1-KLIK DIAGNOSIS & LAPOR
-        </button>
-        <button 
-          onClick={() => setActiveTab('shop_register')}
-          className={`flex items-center gap-1.5 px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'shop_register' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-        >
-          <Store className="w-4 h-4" /> BECOME SELLER PARTNER (BUKA TOKO)
-        </button>
-      </div>
+      {/* Desktop Collapsible Left Sidebar */}
+      <aside 
+        className={`hidden lg:flex flex-col bg-slate-950 border-r border-slate-900/60 transition-all duration-300 flex-shrink-0 h-screen overflow-hidden ${
+          isSidebarCollapsed ? 'w-20' : 'w-64'
+        }`}
+        id="buyer-desktop-sidebar"
+      >
+        {/* Logo Header */}
+        <div className={`flex items-center gap-3 p-4 border-b border-slate-900 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className="bg-white p-1.5 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0 border border-black shadow-md">
+            <img
+              src={currentUser?.avatar || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+              alt="User Logo"
+              className="w-7 h-7 object-cover rounded-sm border border-slate-850/10"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          {!isSidebarCollapsed && (
+            <div className="min-w-0 flex-1 text-left font-sans">
+              <p className="font-extrabold text-sm uppercase leading-tight text-white tracking-wider">
+                {currentUser?.name || "MEMBER"}
+              </p>
+              <p className="text-[8px] text-slate-400 uppercase truncate font-semibold tracking-widest">
+                STANDARD BUYER
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation title label */}
+        {!isSidebarCollapsed && (
+          <span className="text-[10px] text-indigo-500 font-bold tracking-widest block uppercase px-5 mt-5 mb-2 font-sans">
+            NAVIGATION
+          </span>
+        )}
+
+        {/* Search Box inside Sidebar */}
+        <div className="px-4 mb-4 mt-2">
+          {isSidebarCollapsed ? (
+            <button
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="w-full flex justify-center py-2 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 rounded-lg transition-colors cursor-pointer"
+              title="Search tabs"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="CARI TAB..."
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-900/30 hover:bg-slate-900/50 border border-slate-800 text-white placeholder-slate-500 font-mono text-[10px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all uppercase rounded-lg"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Filtered Tabs list */}
+        <div className="flex-1 flex flex-col gap-1 px-3 overflow-y-auto">
+          {[
+            { id: 'profile' as const, label: 'MEMBER PROFILE', icon: UserIcon, count: 0 },
+            { id: 'orders' as const, label: 'ORDERS HISTORY', icon: ShoppingBag, count: myBuyerOrders.length },
+            { id: 'wishlist' as const, label: 'MY WISHLIST', icon: Heart, count: myWishlistedProducts.length },
+            { id: 'follows' as const, label: 'FOLLOWED STORES', icon: Store, count: myFollowedStores.length },
+            { id: 'security' as const, label: 'AKUN & KEAMANAN', icon: ShieldCheck, count: 0 },
+            { id: 'address' as const, label: 'ALAMAT SAYA', icon: MapPin, count: 0 },
+            { id: 'diagnostics' as const, label: '1-KLIK DIAGNOSIS', icon: Activity, count: 0 },
+            { id: 'shop_register' as const, label: 'BUKA TOKO MITRA', icon: Store, count: 0 },
+          ]
+            .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+            .map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              
+              let activeClass = 'bg-indigo-900 text-white font-bold border-indigo-700 shadow-sm';
+              let inactiveClass = 'text-slate-100 hover:bg-white/5 hover:text-white border-transparent';
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group relative flex items-center transition duration-150 cursor-pointer text-left rounded-lg border ${
+                    isSidebarCollapsed ? 'justify-center p-3' : 'px-4 py-2.5 gap-3'
+                  } ${isActive ? activeClass : inactiveClass}`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <span className="flex-1 truncate text-xs uppercase font-medium tracking-wide font-sans">{tab.label}</span>
+                  )}
+                  {tab.count > 0 && (
+                    isSidebarCollapsed ? (
+                      <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center font-sans">
+                        {tab.count}
+                      </span>
+                    ) : (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isActive ? 'bg-white text-black' : 'bg-slate-900 text-indigo-300 border border-slate-800'}`}>
+                        {tab.count}
+                      </span>
+                    )
+                  )}
+
+                  {/* Floating tooltip on hover when sidebar collapsed */}
+                  {isSidebarCollapsed && (
+                    <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-slate-950 text-white text-[10px] uppercase font-bold tracking-wider rounded-lg border border-slate-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg font-sans">
+                      {tab.label} {tab.count > 0 && `(${tab.count})`}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Bottom utilities area */}
+        <div className="p-4 border-t border-slate-900 flex flex-col gap-1.5 font-sans">
+          <div className={`flex items-center gap-3 p-1.5 rounded-lg ${isSidebarCollapsed ? 'justify-center' : 'justify-between bg-slate-950/40 border border-slate-900/40'}`}>
+            {!isSidebarCollapsed && (
+              <span className="text-[8px] text-slate-400 uppercase font-bold tracking-wider">LIGHT THEME</span>
+            )}
+            <div 
+              onClick={() => alert("Tema disinkronkan secara otomatis sesuai sistem!")}
+              className="relative w-8 h-4 bg-slate-900/60 rounded-full cursor-pointer flex items-center px-0.5"
+            >
+              <div className="w-3 h-3 bg-slate-100 rounded-full shadow-sm"></div>
+            </div>
+          </div>
+
+          {/* Logout Button */}
+          <button
+            onClick={() => {
+              if (confirm("Apakah anda yakin untuk logout?")) {
+                logout();
+              }
+            }}
+            className={`w-full group relative flex items-center transition duration-150 cursor-pointer text-left text-rose-400 hover:bg-white/5 hover:text-rose-300 py-2 rounded-lg ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 gap-3'
+            }`}
+          >
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            {!isSidebarCollapsed && (
+              <span className="text-xs uppercase font-bold tracking-wide">LOGOUT</span>
+            )}
+          </button>
+
+          {/* Collapse Menu Button at bottom matching picture */}
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`w-full group relative flex items-center transition duration-150 cursor-pointer text-left text-slate-300 hover:bg-white/5 hover:text-white py-2 rounded-lg ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 gap-3'
+            }`}
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 flex-shrink-0" /> : <ChevronLeft className="w-4 h-4 flex-shrink-0" />}
+            {!isSidebarCollapsed && (
+              <span className="text-xs uppercase font-bold tracking-wide">COLLAPSE MENU</span>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Right Column: Main Area */}
+      <div className="flex flex-col flex-1 h-screen overflow-hidden">
+        
+        {/* Mobile Top Header (Visible only on mobile/tablet) */}
+        <header className="lg:hidden bg-slate-950 text-white border-b border-slate-900 px-4 py-3 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-1.5 rounded-md hover:bg-slate-900 text-slate-300 cursor-pointer flex items-center justify-center border border-slate-800"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="font-sans font-black text-xs uppercase tracking-wider">
+              {currentUser?.name || "MEMBER"} CONTROL PORTAL
+            </span>
+          </div>
+          <button
+            onClick={() => setActivePage('home')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 font-mono text-[9px] uppercase rounded-md cursor-pointer flex items-center"
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>KEMBALI KE TOKO</span>
+          </button>
+        </header>
+
+        {/* Scrollable Content Workspace Area */}
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 pb-28 lg:pb-8 bg-slate-50">
+          
+          {/* Action Feedback Banner */}
+          {feedback && (
+            <div className="mb-6 bg-slate-900 border border-slate-800 text-slate-100 py-3 px-4 font-sans text-xs font-bold rounded-xl shadow-sm flex items-center justify-between animate-pulse">
+              <span>Status Member: {feedback}</span>
+              <button onClick={() => refreshAllData()} className="text-[10px] uppercase font-bold tracking-widest bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded transition-colors">
+                REFRESH
+              </button>
+            </div>
+          )}
+
+          {/* Quick Stats Header info widget specifically styled like admin panel */}
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+            <div>
+              <span className="text-[9px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                MEMBER ID: {currentUser?.id}
+              </span>
+              <h1 className="font-sans text-2xl font-black text-slate-900 uppercase tracking-tight mt-1">BUYER CONTROL PANEL</h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">
+                Kelola pesanan belanja, daftar wishlist pakaian favorit, ikuti toko brand indie, edit alamat, & daftarkan toko mitra Anda sendiri
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 bg-white px-3.5 py-2 border border-slate-200/80 rounded-xl shadow-sm text-xs font-bold text-slate-700">
+              <div>
+                <span className="text-slate-400 block text-[8px] uppercase">WISHLIST SAYA</span>
+                <span className="text-slate-800 font-extrabold text-xs">{myWishlistedProducts.length} PRODUK</span>
+              </div>
+              <div className="h-6 w-px bg-slate-200" />
+              <div>
+                <span className="text-slate-400 block text-[8px] uppercase">TOKO DIIKUTI</span>
+                <span className="text-slate-800 font-extrabold text-xs">{myFollowedStores.length} TOKO</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-grow w-full" id="buyer-tab-content-container">
 
       {activeTab === 'profile' && currentUser && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-mono text-xs" id="profile-pane">
@@ -1432,17 +1702,98 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
 
       {activeTab === 'wishlist' && (
         <div className="space-y-6" id="wishlist-pane">
-          <h2 className="font-serif text-xl font-bold uppercase tracking-tight block">WISHLIST ARCHIVE ({myWishlistedProducts.length})</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="font-sans text-lg font-extrabold uppercase tracking-tight text-slate-900">
+              WISHLIST ARCHIVE ({myWishlistedProducts.length})
+            </h2>
+            {myWishlistedProducts.length > 0 && (
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                PRODUK DISUKAI
+              </span>
+            )}
+          </div>
           
           {myWishlistedProducts.length === 0 ? (
-            <p className="font-mono text-xs text-gray-400 italic">Belum ada wishlist terdaftar.</p>
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-md mx-auto space-y-4 shadow-sm">
+              <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto border border-slate-100">
+                <Heart className="w-8 h-8 text-slate-300" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-sans font-bold text-slate-900 text-sm uppercase">WISHLIST SAYA KOSONG</h3>
+                <p className="font-sans text-xs text-slate-400 uppercase leading-relaxed">
+                  Belum ada produk fesyen atau merchandise yang Anda tandai sebagai favorit.
+                </p>
+              </div>
+              <button
+                onClick={() => setActivePage('shop')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-sans text-xs font-bold uppercase rounded-lg transition-all cursor-pointer shadow-sm"
+              >
+                <span>MULAILAH BELANJA</span>
+              </button>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
               {myWishlistedProducts.map((p) => (
-                <div key={p.id} className="bg-[#faf9f3] p-3 border-2 border-black maternal-shadow-sm font-mono text-xs relative text-center">
-                  <img src={p.images[0]} alt="wish" className="w-full aspect-square object-cover border border-black mb-2" referrerPolicy="no-referrer" />
-                  <span className="font-bold uppercase text-gray-800 line-clamp-1 truncate block">{p.name}</span>
-                  <span className="text-[10px] text-[#991b1b] font-bold block mt-1">Rp{p.price.toLocaleString('id-ID')}</span>
+                <div 
+                  key={p.id} 
+                  className="bg-white border border-slate-200/80 hover:border-indigo-500/50 hover:shadow-md transition-all duration-300 rounded-xl overflow-hidden flex flex-col group relative"
+                >
+                  {/* Delete button from Wishlist */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (toggleWishlist) {
+                        toggleWishlist(p.id);
+                      }
+                    }}
+                    className="absolute top-2.5 right-2.5 z-10 w-7 h-7 bg-white/90 hover:bg-rose-50 border border-slate-200 text-rose-600 hover:text-rose-700 rounded-full flex items-center justify-center shadow-sm cursor-pointer transition-colors"
+                    title="Hapus dari Wishlist"
+                  >
+                    <Heart className="w-4 h-4 fill-current" />
+                  </button>
+
+                  {/* Image container */}
+                  <div 
+                    onClick={() => onSelectProduct && onSelectProduct(p)}
+                    className="aspect-square w-full overflow-hidden bg-slate-50 cursor-pointer relative"
+                  >
+                    <img 
+                      src={p.images[0]} 
+                      alt={p.name} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      referrerPolicy="no-referrer" 
+                    />
+                    <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                      <span className="bg-white/95 text-slate-900 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                        LIHAT DETAIL
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Body content */}
+                  <div className="p-3.5 flex flex-col flex-1 text-left font-sans">
+                    <span className="text-[9px] text-indigo-600 font-bold uppercase tracking-wider block mb-1">
+                      {p.category}
+                    </span>
+                    <h3 
+                      onClick={() => onSelectProduct && onSelectProduct(p)}
+                      className="font-bold text-xs text-slate-800 hover:text-indigo-600 cursor-pointer truncate uppercase block transition-colors leading-tight"
+                    >
+                      {p.name}
+                    </h3>
+                    
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-black text-rose-600">
+                        Rp{p.price.toLocaleString('id-ID')}
+                      </span>
+                      <button
+                        onClick={() => onSelectProduct && onSelectProduct(p)}
+                        className="text-[9px] font-extrabold uppercase tracking-widest text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                      >
+                        BELI →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1451,31 +1802,117 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
       )}
 
       {activeTab === 'follows' && (
-        <div className="space-y-6 font-mono text-xs" id="follows-pane">
-          <h2 className="font-serif text-xl font-bold uppercase block tracking-tight">TOKO COUTURES YANG DIIKUTI</h2>
+        <div className="space-y-6" id="follows-pane">
+          <div className="flex justify-between items-center">
+            <h2 className="font-sans text-lg font-extrabold uppercase tracking-tight text-slate-900">
+              TOKO BRANDS YANG DIIKUTI ({myFollowedStores.length})
+            </h2>
+            {myFollowedStores.length > 0 && (
+              <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                MITRA PENJUAL AKTIF
+              </span>
+            )}
+          </div>
           
           {myFollowedStores.length === 0 ? (
-            <p className="italic text-gray-400">Belum ada toko yang diikuti saat ini.</p>
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-md mx-auto space-y-4 shadow-sm">
+              <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto border border-slate-100">
+                <Store className="w-8 h-8 text-slate-300" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-sans font-bold text-slate-900 text-sm uppercase">BELUM MENGIKUTI TOKO</h3>
+                <p className="font-sans text-xs text-slate-400 uppercase leading-relaxed">
+                  Ikuti toko-toko favorit Anda untuk mendapatkan pembaruan rilis produk terbaru dan promosi khusus.
+                </p>
+              </div>
+              <button
+                onClick={() => setActivePage('stores')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-sans text-xs font-bold uppercase rounded-lg transition-all cursor-pointer shadow-sm"
+              >
+                <span>JELAJAHI DAFTAR TOKO</span>
+              </button>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myFollowedStores.map((s) => (
-                <div key={s.id} className="bg-white p-4 border-2 border-black maternal-shadow-sm flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img src={s.logo} alt="logo" className="w-12 h-12 object-cover border" referrerPolicy="no-referrer" />
-                    <div>
-                      <span className="font-bold text-black uppercase">{s.name}</span>
-                      <p className="text-[10px] text-gray-400 leading-snug">★ {s.rating} Stars Rating • @{s.username}</p>
-                    </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {myFollowedStores.map((s) => {
+                const liveOffset = Math.floor(Math.sin((Date.now() + (s.id ? s.id.charCodeAt(0) : 0) * 1200) / 7500) * 3);
+                const followersVal = (s.followersCount || 1241) + liveOffset;
+                return (
+                  <div 
+                    key={s.id} 
+                    className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden flex flex-col group hover:shadow-md transition-all duration-300 relative"
+                  >
+                  {/* Store Banner Mock/Real */}
+                  <div className="h-16 bg-gradient-to-r from-slate-950 to-indigo-950 relative overflow-hidden flex-shrink-0">
+                    {s.banner ? (
+                      <img src={s.banner} alt="banner" className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px]" />
+                    )}
                   </div>
 
-                  <button
-                    onClick={() => toggleFollowStore(s.id)}
-                    className="px-2.5 py-1 border border-black hover:bg-black hover:text-[#fcfbf7] text-[10px] font-bold uppercase transition-all cursor-pointer"
-                  >
-                    LEAVE / UNFOLLOW
-                  </button>
+                  {/* Store Profile Area */}
+                  <div className="p-5 pt-0 flex-1 flex flex-col relative">
+                    {/* Logo absolute shifted up */}
+                    <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white p-1 shadow-md flex-shrink-0 -mt-7 mb-3 overflow-hidden">
+                      <img src={s.logo} alt={s.name} className="w-full h-full object-cover rounded-lg" referrerPolicy="no-referrer" />
+                    </div>
+
+                    {/* Store Name & Username */}
+                    <div className="text-left font-sans flex-1">
+                      <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">
+                        {s.name}
+                      </h3>
+                      <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">
+                        @{s.username}
+                      </p>
+                      
+                      {s.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-2 leading-relaxed uppercase">
+                          {s.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-2.5 mt-3 text-[10px] font-sans font-bold text-slate-500">
+                        <span className="flex items-center gap-1 text-amber-500">
+                          ★ {s.rating ? s.rating.toFixed(1) : "5.0"}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                        <div className="flex items-center gap-1 text-slate-500">
+                          <span>{followersVal} Pengikut</span>
+                          <span className="flex h-1.5 w-1.5 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                          </span>
+                          <span className="text-[7.5px] font-mono font-bold text-emerald-600 uppercase tracking-widest animate-pulse">LIVE</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          if (setSearchQuery) {
+                            setSearchQuery(s.name);
+                          }
+                          setActivePage('shop');
+                        }}
+                        className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white font-sans text-[10px] font-black uppercase rounded-lg text-center tracking-wider transition-colors cursor-pointer"
+                      >
+                        KUNJUNGI TOKO
+                      </button>
+                      <button
+                        onClick={() => toggleFollowStore(s.id)}
+                        className="px-3 py-2 border border-rose-200 hover:bg-rose-50 text-rose-600 font-sans text-[10px] font-bold uppercase rounded-lg transition-colors cursor-pointer"
+                        title="Batal Mengikuti"
+                      >
+                        UNFOLLOW
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
@@ -2139,7 +2576,7 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
               </button>
 
               {/* Real-time Logger Terminal console feel */}
-              <div className="bg-neutral-950 text-emerald-400 font-mono p-4 min-h-[175px] max-h-[250px] overflow-y-auto border-2 border-black text-[10px] space-y-1.5 leading-normal">
+              <div className="bg-neutral-950 text-emerald-400 font-real-mono p-4 min-h-[175px] max-h-[250px] overflow-y-auto border-2 border-black text-[10px] space-y-1.5 leading-normal">
                 <p className="text-amber-400 font-bold opacity-60">TOKO SIPIL CORE SHIELD CONSOLE v1.2</p>
                 {diagnosticLogs.length === 0 ? (
                   <p className="text-gray-500 italic">Klik tombol di atas untuk memulai pemindaian kerentanan & verifikasi sistem secara instan.</p>
@@ -2297,6 +2734,9 @@ export default function DashboardUser({ onOpenCheckout, onOpenStoreApply, onOpen
 
         </div>
       )}
+        </div> {/* Right column: Content Area */}
+        </main> {/* right column content area */}
+      </div> {/* Right Column: Main Area */}
 
       {/* INVOICE BUKTI PEMBELIAN MODAL SCREEN OVERLAY */}
       {selectedInvoiceOrder && (

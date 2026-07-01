@@ -68,6 +68,14 @@ interface AppContextType {
   setAuthOpen: (open: boolean) => void;
   userDashboardInitialTab: string;
   setUserDashboardInitialTab: (tab: string) => void;
+  userSidebarCollapsed: boolean;
+  setUserSidebarCollapsed: (v: boolean) => void;
+  userMobileSidebarOpen: boolean;
+  setUserMobileSidebarOpen: (v: boolean) => void;
+  sellerSidebarCollapsed: boolean;
+  setSellerSidebarCollapsed: (v: boolean) => void;
+  sellerMobileSidebarOpen: boolean;
+  setSellerMobileSidebarOpen: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -90,6 +98,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeCategory, setActiveCategory] = useState('');
   const [activePage, setActivePage] = useState<'home' | 'shop' | 'stores' | 'about' | 'contact' | 'dashboard-admin' | 'dashboard-seller' | 'dashboard-user' | 'instagram' | 'help-center' | 'legal-policies' | 'track-order' | 'android-builder'>('home');
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+
+  // Sidebar Controls
+  const [userSidebarCollapsed, setUserSidebarCollapsed] = useState(false);
+  const [userMobileSidebarOpen, setUserMobileSidebarOpen] = useState(false);
+  const [sellerSidebarCollapsed, setSellerSidebarCollapsed] = useState(false);
+  const [sellerMobileSidebarOpen, setSellerMobileSidebarOpen] = useState(false);
 
   // Toast States & Controls
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -597,7 +611,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       authOpen,
       setAuthOpen,
       userDashboardInitialTab,
-      setUserDashboardInitialTab
+      setUserDashboardInitialTab,
+      userSidebarCollapsed,
+      setUserSidebarCollapsed,
+      userMobileSidebarOpen,
+      setUserMobileSidebarOpen,
+      sellerSidebarCollapsed,
+      setSellerSidebarCollapsed,
+      sellerMobileSidebarOpen,
+      setSellerMobileSidebarOpen
     }}>
       {children}
     </AppContext.Provider>

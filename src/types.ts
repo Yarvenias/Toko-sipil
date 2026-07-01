@@ -277,6 +277,9 @@ export interface Banner {
   image: string;
   title: string;
   url: string;
+  description?: string;
+  tag?: string;
+  buttonText?: string;
   active: boolean;
 }
 
@@ -320,5 +323,16 @@ export interface DiagnosticReport {
     localStorageHealth: boolean;
   };
   timestamp: string;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string; // The specific user to notify, or "ALL" for system broad-casts, or "SELLER" or "ADMIN"
+  title: string;
+  message: string;
+  type: 'INFO' | 'PRODUCT' | 'ORDER' | 'CHAT' | 'SYSTEM';
+  isRead: boolean;
+  createdAt: string;
+  link?: string;
 }
 

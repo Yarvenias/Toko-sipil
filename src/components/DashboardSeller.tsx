@@ -8,7 +8,8 @@ import { useApp } from '../context/AppContext';
 import { 
   Plus, DollarSign, ArrowUpRight, ShieldAlert, Check, RefreshCw, Send, 
   Trash2, Landmark, UploadCloud, Edit3, Settings, ShieldCheck, ShoppingCart, HelpCircle,
-  Printer, FileText, Download, Calendar
+  Printer, FileText, Download, Calendar, ChevronDown, Percent, BarChart2,
+  ChevronRight, ChevronLeft, Search, LogOut, Menu, X, MessageSquare, Bell, Home, User
 } from 'lucide-react';
 import { Product, OrderStatus, BankVerificationStatus, WithdrawalStatus } from '../types';
 import { 
@@ -17,12 +18,34 @@ import {
 import { compressAndResizeImage } from '../utils/imageCompressor';
 
 export default function DashboardSeller() {
-  const { currentUser, categories, products, orders, vouchers, refreshAllData } = useApp();
+  const { 
+    currentUser, categories, products, orders, vouchers, refreshAllData, settings, setActivePage,
+    sellerSidebarCollapsed: isSidebarCollapsed, setSellerSidebarCollapsed: setIsSidebarCollapsed,
+    sellerMobileSidebarOpen: isMobileMenuOpen, setSellerMobileSidebarOpen: setIsMobileMenuOpen
+  } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'wallet' | 'withdraw' | 'settings' | 'vouchers'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'wallet' | 'withdraw' | 'settings' | 'vouchers' | 'chats'>('overview');
+  const [sidebarSearch, setSidebarSearch] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('seller_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   // Seller's specific associated Store and Wallet
   const [store, setStore] = useState<any>(null);
+  const [liveFollowerOffset, setLiveFollowerOffset] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveFollowerOffset(prev => {
+        const rand = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+        const next = prev + rand;
+        return Math.max(-3, Math.min(3, next)); // keep variation within [-3, 3]
+      });
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [wallet, setWallet] = useState<any>({
     balance: 0,
     heldBalance: 0,
@@ -88,6 +111,72 @@ export default function DashboardSeller() {
   const [resiMap, setResiMap] = useState<Record<string, string>>({});
   const [selectedPrintOrder, setSelectedPrintOrder] = useState<any | null>(null);
   const [orderFilter, setOrderFilter] = useState<'all' | 'pending' | 'process' | 'cancelled'>('all');
+
+  // Seller Chat States & Actions for 2-Way Inbox
+  const [sellerRooms, setSellerRooms] = useState<any[]>([]);
+  const [selectedSellerRoomId, setSelectedSellerRoomId] = useState<string | null>(null);
+  const [sellerMessages, setSellerMessages] = useState<any[]>([]);
+  const [newSellerMessageText, setNewSellerMessageText] = useState('');
+  const [chatRefreshToggle, setChatRefreshToggle] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser || !store) return;
+    const fetchRooms = async () => {
+      try {
+        const res = await fetch(`/api/chats?userId=${currentUser.id}`);
+        if (res.ok) {
+          setSellerRooms(await res.json());
+        }
+      } catch (e) {
+        console.error("Error fetching chats: ", e);
+      }
+    };
+    fetchRooms();
+  }, [currentUser, store, chatRefreshToggle, activeTab]);
+
+  useEffect(() => {
+    if (!selectedSellerRoomId) return;
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`/api/chats/${selectedSellerRoomId}/messages`);
+        if (res.ok) {
+          setSellerMessages(await res.json());
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchMessages();
+
+    const interval = setInterval(fetchMessages, 4500);
+    return () => clearInterval(interval);
+  }, [selectedSellerRoomId, chatRefreshToggle]);
+
+  const handleSendSellerMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSellerMessageText.trim() || !selectedSellerRoomId || !currentUser) return;
+
+    try {
+      const res = await fetch(`/api/chats/${selectedSellerRoomId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          text: newSellerMessageText
+        })
+      });
+
+      if (res.ok) {
+        const msgObj = await res.json();
+        setSellerMessages(prev => [...prev, msgObj]);
+        setNewSellerMessageText('');
+        setChatRefreshToggle(prev => !prev);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
@@ -704,97 +793,563 @@ export default function DashboardSeller() {
   const urgentOrdersToShip = myStoreOrders.filter(o => o.status === OrderStatus.PAID || o.status === OrderStatus.DP_PAID);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8" id="seller-workspace-page">
+    <div className="flex h-screen w-full overflow-hidden bg-[#f8fafc] text-slate-800 font-sans" id="seller-workspace-page">
       
-      {/* Upper header Identity details */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-4 border-black pb-6 mb-8">
-        <div>
-          <span className="font-mono text-xs bg-black text-[#f4f2e9] px-2.5 py-0.5 uppercase inline-block">
-            {store ? `★ SELLER PARTNER: ${store.name}` : '★ BECOMING SELLER PARTNER'}
-          </span>
-          <h1 className="font-serif text-3.5xl font-extrabold uppercase mt-1 tracking-tight">SELLER STORE CENTER</h1>
-          <p className="font-mono text-[10px] text-gray-500 mt-1">
-            STATISTICS, WALLET ESCROWS, BANK WITHDRAWALS, AND ALTERNATIVE STREETWEAR CATALOG CREATION
-          </p>
-        </div>
-
-        {/* Quick followings statistics */}
-        {store && (
-          <div className="bg-white border-2 border-black p-3 text-xs font-mono font-bold maternal-shadow-sm flex items-center gap-4">
-            <div>
-              <span className="text-gray-400 block text-[9px] uppercase">STORE REVIEW RATING</span>
-              <span className="text-black font-extrabold text-md">★ {store.rating}/5.0</span>
+      {/* Mobile Sidenav Overlay */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-emerald-950/40 backdrop-blur-sm"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Sidebar drawer */}
+          <div className="relative flex flex-col w-64 bg-emerald-950 text-white shadow-xl h-full z-50 p-4 font-sans">
+            {/* Logo Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-emerald-800/40">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white p-1 rounded-md w-8 h-8 flex items-center justify-center border border-black shadow-inner">
+                  <img
+                    src={store?.logo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+                    alt="Store Logo"
+                    className="w-5.5 h-5.5 object-cover rounded-sm"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="font-extrabold text-xs uppercase leading-tight text-white tracking-wider">
+                    {store?.name || "MY STORE"}
+                  </p>
+                  <p className="text-[8px] text-emerald-400 uppercase font-semibold tracking-widest">SELLER PORTAL</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded-md hover:bg-emerald-900 text-emerald-300 cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
             </div>
-            <div className="border-l border-gray-300 pl-4">
-              <span className="text-gray-400 block text-[9px] uppercase">FOLLOWERS COUNT</span>
-              <span className="text-black font-extrabold text-md">{store.followersCount} CLIENTS</span>
+
+            {/* Search tab */}
+            <div className="relative mb-4">
+              <Search className="absolute left-2.5 top-2 w-3 h-3 text-emerald-400" />
+              <input
+                type="text"
+                placeholder="CARI TAB..."
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                className="w-full pl-8 pr-2 py-1.5 bg-emerald-900/40 border border-emerald-800 text-emerald-100 placeholder-emerald-500 font-mono text-[9px] focus:outline-none uppercase rounded-md"
+              />
+            </div>
+
+            {/* Nav List */}
+            <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+              {store && [
+                { id: 'overview' as const, label: 'STORE OVERVIEW', icon: BarChart2, count: 0 },
+                { id: 'products' as const, label: 'PRODUCTS MANAGER', icon: ShoppingCart, count: myStoreProducts.length },
+                { id: 'orders' as const, label: 'STORE ORDERS', icon: FileText, count: myStoreOrders.length },
+                { id: 'chats' as const, label: 'STORE CHATS', icon: MessageSquare, count: sellerRooms.length },
+                { id: 'wallet' as const, label: 'WALLET BALANCE', icon: DollarSign, count: 0 },
+                { id: 'withdraw' as const, label: 'WITHDRAW SALDO', icon: Landmark, count: 0 },
+                { id: 'vouchers' as const, label: 'VOUCHERS', icon: Percent, count: myStoreVouchers.length },
+                { id: 'settings' as const, label: 'BRANDING SETUP', icon: Settings, count: 0 },
+              ]
+                .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                .map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  let activeClass = 'bg-emerald-800 text-white font-bold border-emerald-700 shadow-sm';
+                  let inactiveClass = 'text-emerald-100 hover:bg-white/5 hover:text-white border-transparent';
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-left font-mono border text-[11px] uppercase ${isActive ? activeClass : inactiveClass}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span className="flex-1 truncate tracking-wide">{tab.label}</span>
+                      {tab.count > 0 && (
+                        <span className="bg-red-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center font-sans">
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Footer of drawer */}
+            <div className="mt-auto pt-4 border-t border-emerald-800/40 flex flex-col gap-1.5">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setActivePage('home');
+                }}
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-white/5 text-emerald-300 hover:text-white font-mono text-[11px] uppercase cursor-pointer"
+              >
+                <Home className="w-4 h-4" />
+                <span>KEMBALI KE TOKO</span>
+              </button>
             </div>
           </div>
-        )}
-      </div>
-
-      {feedback && (
-        <div className="mb-6 bg-[#111] text-[#f4f2e9] py-3.5 px-4 font-mono text-center text-xs font-bold border-2 border-black animate-pulse maternal-shadow">
-          Status: {feedback}
         </div>
       )}
 
-      {/* Check of store limits */}
-      {!store ? (
-        <div className="text-center py-16 bg-[#eae8de] border-2 border-dashed border-gray-400 maternal-border max-w-xl mx-auto p-8" id="no-store-alert">
-          <ShieldAlert className="w-12 h-12 text-[#991b1b] inline-block mb-3" />
-          <h2 className="font-serif text-xl font-bold uppercase mb-2">ANDA BELUM MEMILIKI TOKO AKTIF</h2>
-          <p className="font-sans text-xs text-gray-600 leading-relaxed max-w-md mx-auto">
-            Gunakan formulir pembukaan toko "OPEN STORE" di dashboard profil utama Anda atau hubungi pihak pengurus administrasi Toko Sipil untuk menyetujui pendaftaran toko Anda supaya role Anda beralih menjadi Seller.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Tabs header brutalist selectors */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-4 border-b border-gray-300 mb-8 font-mono text-xs scrollbar-none" id="seller-tabs">
-            <button 
-              onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'overview' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              STORE OVERVIEW
-            </button>
-            <button 
-              onClick={() => setActiveTab('products')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'products' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              PRODUCTS MANAGER ({myStoreProducts.length})
-            </button>
-            <button 
-              onClick={() => setActiveTab('orders')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'orders' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              STORE ORDERS ({myStoreOrders.length})
-            </button>
-            <button 
-              onClick={() => setActiveTab('wallet')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'wallet' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              WALLET BALANCE
-            </button>
-            <button 
-              onClick={() => setActiveTab('withdraw')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'withdraw' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              WITHDRAW SALDO MY BANK
-            </button>
-            <button 
-              onClick={() => setActiveTab('vouchers')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'vouchers' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              VOUCHERS ({myStoreVouchers.length})
-            </button>
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`px-4 py-2.5 border-2 transition whitespace-nowrap cursor-pointer ${activeTab === 'settings' ? 'border-black bg-black text-white font-bold' : 'border-gray-300 bg-white hover:border-black text-black'}`}
-            >
-              BRANDING SETUP
-            </button>
+      {/* Desktop Collapsible Left Sidebar */}
+      <aside 
+        className={`hidden lg:flex flex-col bg-emerald-950 border-r border-emerald-900/60 transition-all duration-300 flex-shrink-0 h-screen overflow-hidden ${
+          isSidebarCollapsed ? 'w-20' : 'w-64'
+        }`}
+        id="seller-desktop-sidebar"
+      >
+        {/* Logo Header */}
+        <div className={`flex items-center gap-3 p-4 border-b border-emerald-900 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className="bg-white p-1.5 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0 border border-black shadow-md">
+            <img
+              src={store?.logo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+              alt="Store Logo"
+              className="w-7 h-7 object-cover rounded-sm border border-emerald-850/10"
+              referrerPolicy="no-referrer"
+            />
           </div>
+          {!isSidebarCollapsed && (
+            <div className="min-w-0 flex-1 text-left font-sans">
+              <p className="font-extrabold text-sm uppercase leading-tight text-white tracking-wider">
+                {store?.name || "MY STORE"}
+              </p>
+              <p className="text-[8px] text-emerald-400 uppercase truncate font-semibold tracking-widest">
+                MITRA SELLER PARTNER
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation title label */}
+        {!isSidebarCollapsed && store && (
+          <span className="text-[10px] text-emerald-500 font-bold tracking-widest block uppercase px-5 mt-5 mb-2 font-sans">
+            NAVIGATION
+          </span>
+        )}
+
+        {/* Search Box inside Sidebar */}
+        {store && (
+          <div className="px-4 mb-4 mt-2">
+            {isSidebarCollapsed ? (
+              <button
+                onClick={() => setIsSidebarCollapsed(false)}
+                className="w-full flex justify-center py-2 bg-emerald-900/40 hover:bg-emerald-900/80 text-emerald-300 rounded-lg transition-colors cursor-pointer"
+                title="Search tabs"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            ) : (
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-emerald-400" />
+                <input
+                  type="text"
+                  placeholder="CARI TAB..."
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-white placeholder-emerald-500 font-mono text-[10px] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase rounded-lg"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Filtered Tabs list */}
+        <div className="flex-1 flex flex-col gap-1 px-3 overflow-y-auto">
+          {store && [
+            { id: 'overview' as const, label: 'STORE OVERVIEW', icon: BarChart2, count: 0 },
+            { id: 'products' as const, label: 'PRODUCTS MANAGER', icon: ShoppingCart, count: myStoreProducts.length },
+            { id: 'orders' as const, label: 'STORE ORDERS', icon: FileText, count: myStoreOrders.length },
+            { id: 'chats' as const, label: 'STORE CHATS', icon: MessageSquare, count: sellerRooms.length },
+            { id: 'wallet' as const, label: 'WALLET BALANCE', icon: DollarSign, count: 0 },
+            { id: 'withdraw' as const, label: 'WITHDRAW SALDO', icon: Landmark, count: 0 },
+            { id: 'vouchers' as const, label: 'VOUCHERS', icon: Percent, count: myStoreVouchers.length },
+            { id: 'settings' as const, label: 'BRANDING SETUP', icon: Settings, count: 0 },
+          ]
+            .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+            .map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              
+              let activeClass = 'bg-emerald-800 text-white font-bold border-emerald-700 shadow-sm';
+              let inactiveClass = 'text-emerald-100 hover:bg-white/5 hover:text-white border-transparent';
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group relative flex items-center transition duration-150 cursor-pointer text-left rounded-lg border ${
+                    isSidebarCollapsed ? 'justify-center p-3' : 'px-4 py-2.5 gap-3'
+                  } ${isActive ? activeClass : inactiveClass}`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <span className="flex-1 truncate text-xs uppercase font-medium tracking-wide font-sans">{tab.label}</span>
+                  )}
+                  {tab.count > 0 && (
+                    isSidebarCollapsed ? (
+                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center font-sans">
+                        {tab.count}
+                      </span>
+                    ) : (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isActive ? 'bg-white text-black' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}`}>
+                        {tab.count}
+                      </span>
+                    )
+                  )}
+
+                  {/* Floating tooltip on hover when sidebar collapsed */}
+                  {isSidebarCollapsed && (
+                    <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-emerald-950 text-white text-[10px] uppercase font-bold tracking-wider rounded-lg border border-emerald-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg font-sans">
+                      {tab.label} {tab.count > 0 && `(${tab.count})`}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Bottom utilities area */}
+        <div className="p-4 border-t border-emerald-900 flex flex-col gap-1.5 font-sans">
+          <div className={`flex items-center gap-3 p-1.5 rounded-lg ${isSidebarCollapsed ? 'justify-center' : 'justify-between bg-emerald-950/40 border border-emerald-900/40'}`}>
+            {!isSidebarCollapsed && (
+              <span className="text-[8px] text-emerald-400 uppercase font-bold tracking-wider">LIGHT THEME</span>
+            )}
+            <div 
+              onClick={() => alert("Tema disinkronkan secara otomatis sesuai sistem!")}
+              className="relative w-8 h-4 bg-emerald-900/60 rounded-full cursor-pointer flex items-center px-0.5"
+            >
+              <div className="w-3 h-3 bg-emerald-100 rounded-full shadow-sm"></div>
+            </div>
+          </div>
+
+          {/* Collapse Menu Button at bottom matching picture */}
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`w-full group relative flex items-center transition duration-150 cursor-pointer text-left text-emerald-300 hover:bg-white/5 hover:text-white py-2 rounded-lg ${
+              isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 gap-3'
+            }`}
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 flex-shrink-0" /> : <ChevronLeft className="w-4 h-4 flex-shrink-0" />}
+            {!isSidebarCollapsed && (
+              <span className="text-xs uppercase font-bold tracking-wide">COLLAPSE MENU</span>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      {/* Right Column: Main Area */}
+      <div className="flex flex-col flex-1 h-screen overflow-hidden">
+        
+        {/* Mobile Top Header (Visible only on mobile/tablet) */}
+        <header className="lg:hidden bg-emerald-950 text-white border-b border-emerald-900 px-4 py-3 flex items-center justify-between z-10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-1.5 rounded-md hover:bg-emerald-900 text-emerald-300 cursor-pointer flex items-center justify-center border border-emerald-850"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="font-sans font-black text-xs uppercase tracking-wider">
+              {store?.name || "SELLER"} STORE CONTROL PORTAL
+            </span>
+          </div>
+          <button
+            onClick={() => setActivePage('home')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-900 hover:bg-emerald-800 text-emerald-300 hover:text-white border border-emerald-800 font-mono text-[9px] uppercase rounded-md cursor-pointer flex items-center"
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>KEMBALI KE TOKO</span>
+          </button>
+        </header>
+
+        {/* Scrollable Content Workspace Area */}
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 pb-28 lg:pb-8 bg-slate-50">
+          
+          {/* Action Feedback Banner */}
+          {feedback && (
+            <div className="mb-6 bg-emerald-900 border border-emerald-800 text-emerald-100 py-3 px-4 font-sans text-xs font-bold rounded-xl shadow-sm flex items-center justify-between">
+              <span>Notifikasi Toko: {feedback}</span>
+              <button onClick={() => refreshAllData()} className="text-[10px] uppercase font-bold tracking-widest bg-emerald-800 hover:bg-emerald-700 text-white px-2 py-1 rounded transition-colors">
+                REFRESH
+              </button>
+            </div>
+          )}
+
+          {/* Quick Stats Header info widget specifically styled like admin panel */}
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+            <div>
+              <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                {store ? `MITRA SELLER: ${store.name}` : 'CALON VENDOR BARU'}
+              </span>
+              <h1 className="font-sans text-2xl font-black text-slate-900 uppercase tracking-tight mt-1">SELLER STORE CENTER</h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">
+                Kelola katalog barang, pantau status transaksi, penarikan dana dompet, kupon diskon, dan kustomisasi branding toko Anda
+              </p>
+            </div>
+
+            {store && (
+              <div className="flex items-center gap-4 bg-white px-3.5 py-2 border border-slate-200/80 rounded-xl shadow-sm text-xs font-bold text-slate-700">
+                <div>
+                  <span className="text-slate-400 block text-[8px] uppercase">RATING TOKO</span>
+                  <span className="text-slate-800 font-extrabold text-xs">★ {store.rating}/5.0</span>
+                </div>
+                <div className="h-6 w-px bg-slate-200" />
+                <div>
+                  <span className="text-slate-400 block text-[8px] uppercase">PENGGIAT TOKO</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-slate-800 font-extrabold text-xs">{(store.followersCount || 1241) + liveFollowerOffset} PELANGGAN</span>
+                    <span className="flex h-1.5 w-1.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[7.5px] font-mono font-bold text-emerald-600 uppercase tracking-wider animate-pulse">LIVE</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!store ? (
+            <div className="text-center py-16 bg-white border border-slate-200/80 shadow-sm max-w-xl mx-auto p-8 rounded-2xl" id="no-store-alert">
+              <ShieldAlert className="w-12 h-12 text-rose-600 inline-block mb-3 animate-bounce" />
+              <h2 className="font-sans text-lg font-black text-slate-950 uppercase mb-2">ANDA BELUM MEMILIKI TOKO AKTIF</h2>
+              <p className="font-sans text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+                Gunakan formulir pembukaan toko "OPEN STORE" di dashboard profil utama Anda atau hubungi pihak pengurus administrasi Toko Sipil untuk menyetujui pendaftaran toko Anda supaya role Anda beralih menjadi Seller.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Sidebar / Dropdown layout */}
+              <div className="flex flex-col lg:flex-row gap-8 items-start w-full" id="seller-tabs-layout">
+            {/* Left column: Sidebar */}
+            <div 
+              className="w-full lg:hidden flex-shrink-0 relative" 
+              id="seller-sidebar-container"
+            >
+              {/* Mobile Dropdown Menu */}
+              <div className="lg:hidden relative mb-6">
+                <button 
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-black text-white font-mono font-bold border-2 border-black text-xs uppercase cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    {(() => {
+                      const tabsList = [
+                        { id: 'overview' as const, label: 'STORE OVERVIEW', icon: BarChart2, count: 0 },
+                        { id: 'products' as const, label: 'PRODUCTS MANAGER', icon: ShoppingCart, count: myStoreProducts.length },
+                        { id: 'orders' as const, label: 'STORE ORDERS', icon: FileText, count: myStoreOrders.length },
+                        { id: 'chats' as const, label: 'STORE CHATS', icon: MessageSquare, count: sellerRooms.length },
+                        { id: 'wallet' as const, label: 'WALLET BALANCE', icon: DollarSign, count: 0 },
+                        { id: 'withdraw' as const, label: 'WITHDRAW SALDO MY BANK', icon: Landmark, count: 0 },
+                        { id: 'vouchers' as const, label: 'VOUCHERS', icon: Percent, count: myStoreVouchers.length },
+                        { id: 'settings' as const, label: 'BRANDING SETUP', icon: Settings, count: 0 },
+                      ];
+                      const activeItem = tabsList.find(t => t.id === activeTab);
+                      if (activeItem) {
+                        const Icon = activeItem.icon;
+                        return (
+                          <>
+                            <Icon className="w-4 h-4" />
+                            {activeItem.label} {activeItem.count > 0 && `(${activeItem.count})`}
+                          </>
+                        );
+                      }
+                      return "SELECT MENU";
+                    })()}
+                  </span>
+                  <ChevronDown className="w-4 h-4 transition-transform duration-200" style={{ transform: isMobileMenuOpen ? 'rotate(180deg)' : 'none' }} />
+                </button>
+                {isMobileMenuOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-black maternal-shadow z-40 font-mono text-xs max-h-80 overflow-y-auto">
+                    {[
+                      { id: 'overview' as const, label: 'STORE OVERVIEW', icon: BarChart2, count: 0 },
+                      { id: 'products' as const, label: 'PRODUCTS MANAGER', icon: ShoppingCart, count: myStoreProducts.length },
+                      { id: 'orders' as const, label: 'STORE ORDERS', icon: FileText, count: myStoreOrders.length },
+                      { id: 'wallet' as const, label: 'WALLET BALANCE', icon: DollarSign, count: 0 },
+                      { id: 'withdraw' as const, label: 'WITHDRAW SALDO MY BANK', icon: Landmark, count: 0 },
+                      { id: 'vouchers' as const, label: 'VOUCHERS', icon: Percent, count: myStoreVouchers.length },
+                      { id: 'settings' as const, label: 'BRANDING SETUP', icon: Settings, count: 0 },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-4 py-3 border-b border-gray-100 text-left transition-colors cursor-pointer ${
+                            activeTab === tab.id 
+                              ? 'bg-black text-white font-bold' 
+                              : 'hover:bg-gray-100 text-black'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{tab.label}</span>
+                          {tab.count > 0 && (
+                            <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${activeTab === tab.id ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                              {tab.count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Collapsible Left Sidebar (Vertical list - matching Toko Sipil Forest Green theme) */}
+              <div 
+                className="hidden lg:flex flex-col border-2 border-black bg-brand-obsidian p-4 relative transition-all duration-300 min-h-[580px] shadow-lg rounded-none"
+                id="seller-desktop-sidebar"
+              >
+                {/* Logo Header */}
+                <div className={`flex items-center gap-3 pb-4 mb-4 border-b border-emerald-800/40 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                  <div className="bg-white p-1.5 rounded-md w-10 h-10 flex items-center justify-center flex-shrink-0 border border-black shadow-inner">
+                    <img
+                      src={store?.logo || "/src/assets/images/toko_sipil_logo_1781875832848.jpg"}
+                      alt="Store Logo"
+                      className="w-7 h-7 object-cover rounded-sm"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <div className="min-w-0 flex-1 text-left font-mono">
+                      <p className="font-bold text-xs truncate uppercase leading-tight text-white tracking-wider">{store?.name || 'MY STORE'}</p>
+                      <p className="text-[8px] text-emerald-400 uppercase truncate font-semibold tracking-widest">PARTNER VENDOR</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Navigation title label */}
+                {!isSidebarCollapsed && (
+                  <span className="text-[9px] text-emerald-400 font-mono tracking-widest block uppercase mb-3 opacity-80 font-bold">
+                    NAVIGATION
+                  </span>
+                )}
+
+                {/* Search Box inside Sidebar */}
+                <div className="mb-4">
+                  {isSidebarCollapsed ? (
+                    <button
+                      onClick={() => setIsSidebarCollapsed(false)}
+                      className="w-full flex justify-center py-2 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800/50 text-emerald-300 cursor-pointer rounded-md"
+                      title="Search tabs"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2 w-3 h-3 text-emerald-400" />
+                      <input
+                        type="text"
+                        placeholder="CARI TAB..."
+                        value={sidebarSearch}
+                        onChange={(e) => setSidebarSearch(e.target.value)}
+                        className="w-full pl-8 pr-2 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800/80 text-emerald-100 placeholder-emerald-500 font-mono text-[9px] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase rounded-md"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Filtered Tabs list */}
+                <div className="flex flex-col gap-1.5 flex-grow">
+                  {[
+                    { id: 'overview' as const, label: 'STORE OVERVIEW', icon: BarChart2, count: 0 },
+                    { id: 'products' as const, label: 'PRODUCTS MANAGER', icon: ShoppingCart, count: myStoreProducts.length },
+                    { id: 'orders' as const, label: 'STORE ORDERS', icon: FileText, count: myStoreOrders.length },
+                    { id: 'chats' as const, label: 'STORE CHATS', icon: MessageSquare, count: sellerRooms.length },
+                    { id: 'wallet' as const, label: 'WALLET BALANCE', icon: DollarSign, count: 0 },
+                    { id: 'withdraw' as const, label: 'WITHDRAW SALDO', icon: Landmark, count: 0 },
+                    { id: 'vouchers' as const, label: 'VOUCHERS', icon: Percent, count: myStoreVouchers.length },
+                    { id: 'settings' as const, label: 'BRANDING SETUP', icon: Settings, count: 0 },
+                  ]
+                    .filter(tab => tab.label.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                    .map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`group relative flex items-center transition duration-200 cursor-pointer text-left font-mono rounded-md ${
+                            isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+                          } ${
+                            isActive 
+                              ? 'bg-emerald-800/80 text-white font-bold border-emerald-700 shadow-sm' 
+                              : 'text-emerald-100 hover:bg-white/5 hover:text-white border-transparent'
+                          } border`}
+                        >
+                          <Icon className="w-4 h-4 flex-shrink-0" />
+                          {!isSidebarCollapsed && (
+                            <span className="flex-1 truncate text-[11px] uppercase font-mono tracking-wide">{tab.label}</span>
+                          )}
+                          {tab.count > 0 && (
+                            isSidebarCollapsed ? (
+                              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                                {tab.count}
+                              </span>
+                            ) : (
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isActive ? 'bg-white text-black' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}`}>
+                                {tab.count}
+                              </span>
+                            )
+                          )}
+
+                          {/* Floating tooltip on hover when sidebar collapsed */}
+                          {isSidebarCollapsed && (
+                            <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-brand-obsidian text-white text-[10px] uppercase font-bold tracking-wider rounded-none border border-emerald-800 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                              {tab.label} {tab.count > 0 && `(${tab.count})`}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Bottom utilities area */}
+                <div className="mt-8 pt-4 border-t border-emerald-800/40 flex flex-col gap-1.5">
+                  <div className={`flex items-center gap-3 p-1.5 rounded-md ${isSidebarCollapsed ? 'justify-center' : 'justify-between bg-emerald-950/40 border border-emerald-900/40'}`}>
+                    {!isSidebarCollapsed && (
+                      <span className="font-mono text-[8px] text-emerald-400 uppercase font-bold tracking-wider">LIGHT THEME</span>
+                    )}
+                    <div 
+                      onClick={() => alert("Tema disinkronkan secara otomatis sesuai sistem!")}
+                      className="relative w-8 h-4 bg-emerald-900/60 rounded-full cursor-pointer flex items-center px-0.5"
+                    >
+                      <div className="w-3 h-3 bg-emerald-100 rounded-full shadow-sm"></div>
+                    </div>
+                  </div>
+
+                  {/* Collapse Menu Button at bottom matching picture */}
+                  <button
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className={`w-full group relative flex items-center transition duration-200 cursor-pointer text-left font-mono text-emerald-300 hover:bg-white/5 hover:text-white py-2.5 rounded-md ${
+                      isSidebarCollapsed ? 'justify-center p-2.5' : 'px-3 gap-3'
+                    }`}
+                  >
+                    {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 flex-shrink-0" /> : <ChevronLeft className="w-4 h-4 flex-shrink-0" />}
+                    {!isSidebarCollapsed && (
+                      <span className="text-[11px] uppercase font-bold tracking-wide">COLLAPSE MENU</span>
+                    )}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Right column: Content Area */}
+            <div className="flex-1 w-full" id="seller-tab-content-container">
 
           {activeTab === 'overview' && (
             <div className="space-y-6" id="seller-overview">
@@ -905,7 +1460,7 @@ export default function DashboardSeller() {
                 <div className="md:col-span-2 border-2 border-black p-4 bg-white relative">
                   <span className="absolute top-2 right-2 text-[8px] font-mono text-gray-400">7-DAY CHART CONTROLLER</span>
                   <div className="h-72 w-full mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height={288}>
                       <ComposedChart data={last7DaysData} margin={{ top: 15, right: 10, left: 10, bottom: 5 }}>
                         <defs>
                           <linearGradient id="revenueGlow" x1="0" y1="0" x2="0" y2="1">
@@ -2106,8 +2661,129 @@ export default function DashboardSeller() {
               </div>
             </div>
           )}
+
+          {activeTab === 'chats' && (
+            <div className="bg-white border-2 border-black maternal-shadow animate-fade-in grid grid-cols-1 md:grid-cols-12 min-h-[600px]" id="store-chats-pane">
+              {/* Left Column: Chat rooms list */}
+              <div className={`md:col-span-4 border-r-2 border-black flex flex-col h-[600px] ${selectedSellerRoomId ? 'hidden md:flex' : 'flex'}`}>
+                <div className="p-4 bg-black text-white border-b-2 border-black font-mono text-[10px] font-bold tracking-wider uppercase">
+                  DAFTAR OBROLAN CUSTOMER
+                </div>
+                <div className="flex-grow overflow-y-auto bg-neutral-50 divide-y divide-gray-200">
+                  {sellerRooms.length === 0 ? (
+                    <div className="text-center py-20 font-mono text-xs text-gray-400">
+                      Belum ada obrolan masuk dari customer.
+                    </div>
+                  ) : (
+                    sellerRooms.map((room) => {
+                      const isActive = selectedSellerRoomId === room.id;
+                      return (
+                        <div
+                          key={room.id}
+                          onClick={() => setSelectedSellerRoomId(room.id)}
+                          className={`p-4 cursor-pointer transition-colors duration-150 ${
+                            isActive ? 'bg-emerald-50 border-l-4 border-emerald-700 font-bold' : 'hover:bg-gray-100 bg-white'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-serif text-xs text-black uppercase font-bold tracking-tight block truncate max-w-[150px]">
+                              {room.buyerName || 'Pembeli'}
+                            </span>
+                            <span className="font-mono text-[8px] text-gray-400">
+                              {new Date(room.updatedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="font-mono text-[10px] text-gray-500 truncate block w-full">
+                            {room.lastMessage || 'Lihat pesan...'}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Chat timeline panel */}
+              <div className={`md:col-span-8 h-[600px] bg-amber-50/10 ${selectedSellerRoomId ? 'flex flex-col justify-between' : 'hidden md:flex md:flex-col md:justify-between'}`}>
+                {selectedSellerRoomId ? (
+                  <>
+                    {/* Header of selected room */}
+                    <div className="p-4 bg-white border-b-2 border-black flex justify-between items-center">
+                      <div>
+                        <span className="font-serif text-sm font-black text-black uppercase block tracking-tight">
+                          {sellerRooms.find(r => r.id === selectedSellerRoomId)?.buyerName || 'OBROLAN CUSTOMER'}
+                        </span>
+                        <span className="font-mono text-[8.5px] text-emerald-800 font-bold uppercase tracking-wide">
+                          CUSTOMER SUPPORT DESK
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedSellerRoomId(null)}
+                        className="md:hidden font-mono text-[10px] bg-black text-white px-2 py-1 uppercase rounded"
+                      >
+                        KEMBALI
+                      </button>
+                    </div>
+
+                    {/* Messages list area */}
+                    <div className="flex-grow overflow-y-auto p-4 space-y-3.5">
+                      {sellerMessages.map((msg) => {
+                        const isMe = msg.senderId === currentUser?.id;
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}
+                          >
+                            <span className="font-mono text-[8.5px] text-gray-400">
+                              {isMe ? 'Anda (Seller)' : (sellerRooms.find(r => r.id === selectedSellerRoomId)?.buyerName || 'Customer')}
+                            </span>
+                            <div className={`p-3 max-w-sm border-2 border-black font-mono text-xs ${
+                              isMe ? 'bg-emerald-800 text-white maternal-shadow-sm' : 'bg-white text-black'
+                            }`}>
+                              <p className="break-all whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer input form */}
+                    <form onSubmit={handleSendSellerMessage} className="p-4 bg-white border-t-2 border-black flex gap-2">
+                      <input
+                        type="text"
+                        value={newSellerMessageText}
+                        onChange={(e) => setNewSellerMessageText(e.target.value)}
+                        placeholder="Tulis balasan pesan untuk customer..."
+                        className="flex-grow bg-[#fafcf9] border-2 border-black p-3 font-mono text-xs focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="bg-black hover:bg-neutral-800 text-white font-black border-2 border-black text-xs uppercase px-6 cursor-pointer flex items-center gap-2"
+                      >
+                        KIRIM
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="flex-grow flex flex-col items-center justify-center text-center p-8 font-mono text-xs text-gray-500">
+                    <MessageSquare className="w-12 h-12 text-gray-400 mb-3" />
+                    <p className="font-bold text-gray-700 uppercase tracking-wide">PILIH SALAH SATU OBROLAN</p>
+                    <p className="text-gray-400 mt-1 max-w-xs leading-relaxed">
+                      Klik pada salah satu nama customer di panel sebelah kiri untuk melihat pesan masuk dan mengirimkan balasan.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+            </div> {/* Right column: Content Area */}
+          </div> {/* seller-tabs-layout */}
         </>
       )}
+        </main>
+      </div>
+
 
       {selectedPrintOrder && (
         <div id="seller-print-overlay" className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto print:bg-white print:p-0">

@@ -12,18 +12,29 @@ import {
   User, Role, Store, StoreApplication, Product, Category, Order, OrderStatus,
   Wallet, WalletTransaction, BankAccount, Withdrawal, Chat, Message, Review,
   Voucher, Banner, Settings, ApplicationStatus, BankVerificationStatus, WithdrawalStatus,
-  DiagnosticReport, AndroidConfig
+  DiagnosticReport, AndroidConfig, AppNotification
 } from '../src/types';
 
 const DB_PATH = path.join(process.cwd(), 'db.json');
 const DB_BACKUP_PATH = path.join(process.cwd(), 'db_backup.json');
 
-// Initialize Firebase
-const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const firestore = initializeFirestore(firebaseApp, {
-  localCache: memoryLocalCache(),
-  experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+// Initialize Firebase lazily to prevent load-time crashes when configuration is incomplete or missing
+let firestoreInstance: any = null;
+
+export function getFirestoreDb() {
+  if (firestoreInstance) return firestoreInstance;
+  try {
+    const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    firestoreInstance = initializeFirestore(firebaseApp, {
+      localCache: memoryLocalCache(),
+      experimentalForceLongPolling: true,
+    }, firebaseConfig.firestoreDatabaseId);
+    return firestoreInstance;
+  } catch (error) {
+    console.error('⚠️ Failed to initialize Firestore SDK lazily:', error);
+    return null;
+  }
+}
 
 export interface FullDatabase {
   users: User[];
@@ -45,6 +56,7 @@ export interface FullDatabase {
   follows: { userId: string; storeId: string; }[];
   diagnosticReports?: DiagnosticReport[];
   androidConfig?: AndroidConfig;
+  notifications?: AppNotification[];
 }
 
 const TABLE_KEYS: (keyof FullDatabase)[] = [
@@ -66,7 +78,8 @@ const TABLE_KEYS: (keyof FullDatabase)[] = [
   'settings',
   'follows',
   'diagnosticReports',
-  'androidConfig'
+  'androidConfig',
+  'notifications'
 ];
 
 // In-memory cache
@@ -493,7 +506,8 @@ function getInitialSeedData(): FullDatabase {
       enableCamera: true,
       enablePush: false,
       enableHardwareAcc: true
-    }
+    },
+    notifications: []
   };
 }
 
@@ -510,6 +524,7 @@ export function loadDb(): FullDatabase {
       const data = JSON.parse(raw);
       if (!data.follows) data.follows = [];
       if (!data.diagnosticReports) data.diagnosticReports = [];
+      if (!data.notifications) data.notifications = [];
       if (!data.androidConfig) {
         data.androidConfig = getInitialSeedData().androidConfig;
       }
@@ -571,12 +586,18 @@ export async function initDb(): Promise<FullDatabase> {
     const db = loadDb();
 
     try {
-      const querySnapshot = await getDocs(collection(firestore, 'tables'));
+      const dbInstance = getFirestoreDb();
+      if (!dbInstance) {
+        console.warn('⚠️ Firestore is not available, skipping cloud sync.');
+        cachedDb = db;
+        return db;
+      }
+      const querySnapshot = await getDocs(collection(dbInstance, 'tables'));
       if (querySnapshot.empty) {
         console.log('📤 Firestore is empty! Uploading initial seed data to Cloud Firestore...');
         // Upload every table as a document in parallel
         const uploadPromises = TABLE_KEYS.map(async (key) => {
-          const tableRef = doc(firestore, 'tables', key);
+          const tableRef = doc(dbInstance, 'tables', key);
           await setDoc(tableRef, { data: db[key] });
           lastSavedStateJson[key] = JSON.stringify(db[key]);
         });
@@ -632,19 +653,20 @@ export async function saveDb(data: FullDatabase): Promise<void> {
   }
 
   // 2. Perform delta sync to Firestore and await to prevent container freezing
-  const syncPromises = TABLE_KEYS.map(async (key) => {
+  const dbInstance = getFirestoreDb();
+  const syncPromises = dbInstance ? TABLE_KEYS.map(async (key) => {
     const currentJson = JSON.stringify(data[key]);
     if (currentJson !== lastSavedStateJson[key]) {
       // Data has changed, sync it!
       lastSavedStateJson[key] = currentJson;
       try {
-        const tableRef = doc(firestore, 'tables', key);
+        const tableRef = doc(dbInstance, 'tables', key);
         await setDoc(tableRef, { data: data[key] });
       } catch (error) {
         console.error(`❌ Failed to sync table [${key}] with Firestore:`, error);
       }
     }
-  });
+  }) : [];
 
   await Promise.all(syncPromises);
 }
